@@ -7,4 +7,10 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
+  assetsInclude: ['**/*.md'],
 })
