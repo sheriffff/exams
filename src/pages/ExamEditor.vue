@@ -1,9 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import QuestionRow from '@/components/QuestionRow.vue'
-import LatexPreview from '@/components/LatexPreview.vue'
 import { buildTexDocument, compilePdf, downloadBlob } from '@/services/latex'
 import { getTemplates } from '@/services/templates'
+
+const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+function formatDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${d} ${MONTHS[m - 1]} ${y}`
+}
 
 const courses = ['1 ESO', '2 ESO', '3 ESO', '4 ESO', '1 Bachillerato', '2 Bachillerato']
 const course = ref('1 ESO')
@@ -11,6 +19,7 @@ const questions = ref([])
 const generating = ref(false)
 const templates = ref(getTemplates())
 const selectedTemplateId = ref(null)
+const fontSize = ref(12)
 
 const examMeta = ref({
   title: '',
@@ -20,32 +29,97 @@ const examMeta = ref({
   modelo: '',
 })
 
-const examOptions = ref({
-  answerSpace: false,
-  answerSpaceCm: 5,
-  perQuestionSpace: false,
-  instructions: '',
+const formattedDate = computed(() => formatDate(examMeta.value.date))
+const displayDate = computed(() => {
+  if (!examMeta.value.date) return ''
+  const [y, m, d] = examMeta.value.date.split('-')
+  return `${d}/${m}/${y}`
 })
+
+const instructions = ref([''])
+
+function addInstruction() {
+  instructions.value.push('')
+}
+
+function removeInstruction(index) {
+  instructions.value.splice(index, 1)
+  if (instructions.value.length === 0) instructions.value = ['']
+}
+
+const examOptions = computed(() => ({
+  instructions: instructions.value.filter(i => i.trim()).join('\n'),
+}))
+
+const headerPreviewUrl = ref(null)
+const compilingHeader = ref(false)
+let headerDebounce = null
+let headerBlobUrl = null
+
+function headerTex() {
+  const meta = { ...examMeta.value, date: formattedDate.value }
+  return buildTexDocument([], meta, course.value, examOptions.value, null, fontSize.value)
+    .replace('[a4paper]', '')
+    .replace('[margin=2.5cm]', '[paperwidth=19cm,paperheight=14.85cm,margin=1.5cm]')
+}
+
+async function compileHeaderPreview() {
+  compilingHeader.value = true
+  try {
+    const blob = await compilePdf(headerTex())
+    if (headerBlobUrl) URL.revokeObjectURL(headerBlobUrl)
+    headerBlobUrl = URL.createObjectURL(blob)
+    headerPreviewUrl.value = headerBlobUrl + '#toolbar=0&view=FitPage'
+  } catch {
+  } finally {
+    compilingHeader.value = false
+  }
+}
+
+function scheduleHeaderPreview() {
+  clearTimeout(headerDebounce)
+  headerDebounce = setTimeout(compileHeaderPreview, 1200)
+}
+
+watch(
+  [() => examMeta.value.title, () => examMeta.value.teacher, () => examMeta.value.date,
+   () => examMeta.value.className, () => examMeta.value.modelo, course, fontSize, examOptions],
+  scheduleHeaderPreview,
+  { immediate: true }
+)
+
+const showField = ref({
+  title: false,
+  teacher: false,
+  instructions: false,
+})
+
+const optionalFields = [
+  { key: 'title', label: 'Título' },
+  { key: 'teacher', label: 'Profesor' },
+  { key: 'instructions', label: 'Instrucciones' },
+]
+
+const hiddenFields = computed(() => optionalFields.filter(f => !showField.value[f.key]))
+
+function enableField(key) {
+  showField.value[key] = true
+}
+
+function disableField(key) {
+  showField.value[key] = false
+  if (key === 'instructions') instructions.value = ['']
+  else examMeta.value[key] = ''
+}
 
 const hasQuestions = computed(() => questions.value.some(q => q.latex))
-const totalPoints = computed(() => questions.value.reduce((sum, q) => sum + (q.points || 0), 0))
-const pointsWarning = computed(() => {
-  const validQs = questions.value.filter(q => q.latex)
-  return validQs.length > 0 && totalPoints.value !== 10
-})
-const previewQuestions = computed(() => questions.value.filter(q => q.latex))
-
-function answerSpaceForPreview(q) {
-  if (examOptions.value.perQuestionSpace) return q.answerSpace || 0
-  if (examOptions.value.answerSpace) return examOptions.value.answerSpaceCm
-  return 0
-}
 
 async function generateExam() {
   generating.value = true
   try {
     const tpl = selectedTemplateId.value ? templates.value.find(t => t.id === selectedTemplateId.value)?.texTemplate : null
-    const tex = buildTexDocument(questions.value, examMeta.value, course.value, examOptions.value, tpl)
+    const meta = { ...examMeta.value, date: formattedDate.value }
+    const tex = buildTexDocument(questions.value, meta, course.value, examOptions.value, tpl, fontSize.value)
     const blob = await compilePdf(tex)
     const filename = (examMeta.value.title || 'examen').replace(/\s+/g, '_') + '.pdf'
     downloadBlob(blob, filename)
@@ -67,7 +141,8 @@ function addQuestion() {
     title: '',
     collapsed: false,
     points: 0,
-    answerSpace: 5,
+    difficulty: 'NORMAL',
+    questionType: 'analitico',
   })
 }
 
@@ -88,117 +163,155 @@ function toggleCollapse(id) {
   const q = questions.value.find(q => q.id === id)
   if (q) q.collapsed = !q.collapsed
 }
+
+onUnmounted(() => {
+  if (headerBlobUrl) URL.revokeObjectURL(headerBlobUrl)
+  clearTimeout(headerDebounce)
+})
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <div class="max-w-7xl mx-auto">
-      <h1 class="text-2xl font-bold text-gray-900 mb-6">Crear Examen</h1>
+  <div class="min-h-screen relative">
+    <div class="absolute inset-0 -z-10">
+      <div class="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] rounded-full bg-primary-200/30 blur-3xl" />
+      <div class="absolute bottom-[10%] left-[-8%] w-[350px] h-[350px] rounded-full bg-accent-400/15 blur-3xl" />
+    </div>
 
-      <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-4">
-        <h2 class="text-sm font-semibold text-gray-800 mb-3">Datos del examen</h2>
-        <div class="flex flex-wrap gap-3 items-end">
-          <div v-if="templates.length" class="w-36">
-            <label class="block text-xs text-gray-500 mb-0.5">Plantilla</label>
-            <select v-model="selectedTemplateId" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-              <option :value="null">Por defecto</option>
-              <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
-            </select>
-          </div>
-          <div class="w-36">
-            <label class="block text-xs text-gray-500 mb-0.5">Curso</label>
-            <select v-model="course" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-              <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
-            </select>
-          </div>
-          <div class="w-16">
-            <label class="block text-xs text-gray-500 mb-0.5">Clase</label>
-            <input v-model="examMeta.className" type="text" placeholder="A" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div class="w-16">
-            <label class="block text-xs text-gray-500 mb-0.5">Modelo</label>
-            <input v-model="examMeta.modelo" type="text" placeholder="A" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div class="w-36">
-            <label class="block text-xs text-gray-500 mb-0.5">Profesor</label>
-            <input v-model="examMeta.teacher" type="text" placeholder="Juan García" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div class="w-36">
-            <label class="block text-xs text-gray-500 mb-0.5">Fecha</label>
-            <input v-model="examMeta.date" type="date" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-          <div class="flex-1 min-w-40">
-            <label class="block text-xs text-gray-500 mb-0.5">Título <span class="text-gray-300">(opcional)</span></label>
-            <input v-model="examMeta.title" type="text" placeholder="Examen Tema 5 — Ecuaciones" class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          </div>
-        </div>
+    <div class="max-w-6xl mx-auto px-6 py-6">
+      <div class="flex items-center gap-3 mb-8">
+        <RouterLink to="/" class="p-2 rounded-xl text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </RouterLink>
+        <h1 class="text-2xl font-extrabold tracking-tight text-gray-900">Crear Examen</h1>
       </div>
 
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <h2 class="text-sm font-semibold text-gray-800 mb-3">Opciones</h2>
-          <div class="space-y-3">
-            <div>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" v-model="examOptions.answerSpace" class="accent-blue-600 w-4 h-4" />
-                <span class="text-sm text-gray-700">Espacio para respuestas</span>
-              </label>
-              <div v-if="examOptions.answerSpace && !examOptions.perQuestionSpace" class="mt-2 ml-6 flex items-center gap-2">
-                <input type="range" v-model.number="examOptions.answerSpaceCm" min="1" max="15" step="0.5" class="flex-1 accent-blue-600" />
-                <span class="text-xs text-gray-500 w-10 text-right">{{ examOptions.answerSpaceCm }} cm</span>
+      <div class="grid grid-cols-2 gap-8 mb-8">
+        <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-6">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5">Cabecera</h2>
+
+          <div class="space-y-4">
+            <div class="flex gap-4">
+              <div class="flex-1">
+                <label class="block text-sm text-gray-500 mb-1.5 font-medium">Curso</label>
+                <select v-model="course" class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all">
+                  <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
+                </select>
               </div>
-              <label v-if="examOptions.answerSpace" class="flex items-center gap-2 cursor-pointer mt-2 ml-6">
-                <input type="checkbox" v-model="examOptions.perQuestionSpace" class="accent-blue-600 w-3.5 h-3.5" />
-                <span class="text-xs text-gray-500">Personalizar por pregunta</span>
-              </label>
+              <div>
+                <label class="block text-sm text-gray-500 mb-1.5 font-medium">Clase</label>
+                <input v-model="examMeta.className" type="text" placeholder="A" class="w-20 border border-gray-200/80 rounded-lg px-3 py-2.5 text-base placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
+              </div>
+              <div>
+                <label class="block text-sm text-gray-500 mb-1.5 font-medium">Modelo</label>
+                <input v-model="examMeta.modelo" type="text" placeholder="A" class="w-20 border border-gray-200/80 rounded-lg px-3 py-2.5 text-base placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
+              </div>
+              <div class="flex-1 relative">
+                <label class="block text-sm text-gray-500 mb-1.5 font-medium">Fecha</label>
+                <div class="relative">
+                  <input
+                    :value="displayDate"
+                    readonly
+                    @click="$refs.datePicker.showPicker()"
+                    class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all cursor-pointer"
+                  />
+                  <input
+                    ref="datePicker"
+                    v-model="examMeta.date"
+                    type="date"
+                    class="absolute inset-0 opacity-0 pointer-events-none"
+                    @input="examMeta.date = $event.target.value"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label class="block text-sm text-gray-700 mb-1">Instrucciones <span class="text-gray-300">(opcional)</span></label>
-              <textarea
-                v-model="examOptions.instructions"
-                rows="2"
-                placeholder="No se permite el uso de calculadora"
-                class="w-full border border-gray-200 rounded px-2 py-1.5 text-sm placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              />
+            <div v-if="templates.length">
+              <label class="block text-sm text-gray-500 mb-1.5 font-medium">Plantilla</label>
+              <select v-model="selectedTemplateId" class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all">
+                <option :value="null">Por defecto</option>
+                <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
             </div>
 
-            <div v-if="pointsWarning" class="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
-              La puntuación suma {{ totalPoints }} puntos (debería ser 10)
+            <div v-if="showField.title">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-sm text-gray-500 font-medium">Título</label>
+                <button @click="disableField('title')" class="text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <input v-model="examMeta.title" type="text" placeholder="Examen Tema 5 — Ecuaciones" class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
             </div>
+
+            <div v-if="showField.teacher">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-sm text-gray-500 font-medium">Profesor</label>
+                <button @click="disableField('teacher')" class="text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <input v-model="examMeta.teacher" type="text" placeholder="Juan García" class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
+            </div>
+
+            <div v-if="showField.instructions">
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-sm text-gray-500 font-medium">Instrucciones</label>
+                <button @click="disableField('instructions')" class="text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div class="space-y-2">
+                <div v-for="(_, i) in instructions" :key="i" class="flex items-center gap-2">
+                  <input
+                    v-model="instructions[i]"
+                    type="text"
+                    placeholder="No se permite el uso de calculadora"
+                    class="flex-1 border border-gray-200/80 rounded-lg px-3 py-2.5 text-base placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all"
+                  />
+                  <button v-if="instructions.length > 1" @click="removeInstruction(i)" class="p-1.5 text-gray-300 hover:text-red-400 cursor-pointer transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <button @click="addInstruction" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-600 hover:bg-primary-50 rounded-lg transition-all cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+                  Añadir instrucción
+                </button>
+              </div>
+            </div>
+
+            <div v-if="hiddenFields.length" class="flex flex-wrap gap-2 pt-1">
+              <button
+                v-for="f in hiddenFields"
+                :key="f.key"
+                @click="enableField(f.key)"
+                class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-all cursor-pointer"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+                {{ f.label }}
+              </button>
+            </div>
+
+          </div>
+
+          <div class="flex items-center gap-3 mt-4">
+            <span class="text-[10px] text-gray-400 font-bold">A</span>
+            <input type="range" v-model.number="fontSize" min="8" max="20" step="2" class="flex-1 accent-primary-600" />
+            <span class="text-lg text-gray-400 font-bold">A</span>
           </div>
         </div>
 
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-col">
-          <h2 class="text-sm font-semibold text-gray-800 mb-3">Vista previa</h2>
-          <div class="flex-1 border border-gray-100 rounded bg-white shadow-inner p-5 overflow-y-auto" style="max-height: 420px">
-            <div class="text-center font-bold text-sm mb-2">{{ examMeta.title || 'Examen de Matemáticas' }}</div>
-            <div class="flex justify-between text-[10px] text-gray-500 mb-1">
-              <span>{{ course }}{{ examMeta.className ? ' — ' + examMeta.className : '' }}</span>
-              <span v-if="examMeta.teacher">{{ examMeta.teacher }}</span>
-              <span>{{ examMeta.date }}</span>
+        <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-5 flex flex-col">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Vista previa cabecera</h2>
+          <div class="flex-1 rounded-t-lg border border-b-0 border-gray-200 overflow-hidden relative">
+            <iframe v-if="headerPreviewUrl" :src="headerPreviewUrl" class="w-full border-0" style="height: 280px" />
+            <div v-if="compilingHeader" class="absolute inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+              <svg class="w-6 h-6 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              <span class="text-sm text-gray-400 font-medium">Generando…</span>
             </div>
-            <div v-if="examMeta.modelo" class="text-[10px] text-gray-500 mb-1">Modelo: {{ examMeta.modelo }}</div>
-            <div class="text-[10px] border-b border-gray-300 pb-1 mb-2">
-              Nombre del alumno/a: <span class="inline-block w-40 border-b border-gray-400" />
-            </div>
-            <div v-if="examOptions.instructions" class="text-[10px] italic text-gray-400 mb-3">{{ examOptions.instructions }}</div>
-
-            <div v-if="!previewQuestions.length" class="text-[10px] text-gray-300 italic text-center mt-6">Las preguntas aparecerán aquí</div>
-
-            <div v-for="(q, i) in previewQuestions" :key="q.id" class="mb-3">
-              <div class="flex items-baseline gap-1 text-[11px]">
-                <span class="font-bold">{{ i + 1 }}.</span>
-                <span v-if="q.points" class="text-gray-400">({{ q.points }} pts)</span>
-              </div>
-              <div class="ml-4 mt-0.5" style="font-size: 10px">
-                <LatexPreview :latex="q.latex" />
-              </div>
-              <div
-                v-if="answerSpaceForPreview(q) > 0"
-                class="ml-4 mt-1 border border-dashed border-gray-200 rounded"
-                :style="{ height: Math.round(answerSpaceForPreview(q) * 15) + 'px' }"
-              />
+            <div v-if="!headerPreviewUrl && !compilingHeader" class="flex items-center justify-center h-[280px] text-gray-300 text-sm">
+              Cargando vista previa…
             </div>
           </div>
         </div>
@@ -212,8 +325,8 @@ function toggleCollapse(id) {
           v-model:latex="q.latex"
           v-model:title="q.title"
           v-model:points="q.points"
-          v-model:question-answer-space="q.answerSpace"
-          :show-answer-space-slider="examOptions.answerSpace && examOptions.perQuestionSpace"
+          v-model:difficulty="q.difficulty"
+          v-model:question-type="q.questionType"
           :course="course"
           :collapsed="q.collapsed"
           :can-move-up="index > 0"
@@ -225,16 +338,19 @@ function toggleCollapse(id) {
         />
       </div>
 
-      <div class="mt-6 mb-8">
-        <button @click="addQuestion" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors cursor-pointer">
-          + Añadir pregunta
+      <div class="mt-8 mb-10 flex items-center gap-4">
+        <button @click="addQuestion" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-sm text-primary-600 rounded-xl font-semibold border border-primary-200 hover:bg-primary-50 hover:border-primary-300 shadow-sm hover:shadow transition-all cursor-pointer">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+          </svg>
+          Añadir pregunta
         </button>
       </div>
 
       <button
         :disabled="!hasQuestions || generating"
         @click="generateExam"
-        class="w-full py-4 bg-green-600 text-white text-lg font-semibold rounded-xl hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 transition-colors cursor-pointer disabled:cursor-not-allowed"
+        class="group w-full py-4 bg-gradient-to-r from-primary-600 to-accent-500 text-white text-lg font-bold rounded-2xl hover:from-primary-500 hover:to-accent-400 shadow-lg shadow-primary-500/20 hover:shadow-xl hover:shadow-primary-500/30 disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
       >
         {{ generating ? 'Generando PDF…' : 'Generar Examen' }}
       </button>

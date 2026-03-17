@@ -1,2 +1,30 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
+
+@theme {
+  --color-primary-50: oklch(0.97 0.014 254);
+  --color-primary-100: oklch(0.93 0.03 254);
+  --color-primary-200: oklch(0.87 0.06 254);
+  --color-primary-300: oklch(0.78 0.1 254);
+  --color-primary-400: oklch(0.68 0.15 254);
+  --color-primary-500: oklch(0.55 0.19 254);
+  --color-primary-600: oklch(0.48 0.2 254);
+  --color-primary-700: oklch(0.42 0.17 254);
+
+  --color-accent-400: oklch(0.75 0.15 160);
+  --color-accent-500: oklch(0.65 0.18 160);
+  --color-accent-600: oklch(0.55 0.16 160);
+}
+
+body {
+  background: oklch(0.97 0.005 260);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@layer utilities {
+  .glass {
+    background: oklch(1 0 0 / 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid oklch(1 0 0 / 0.2);
+  }
+}

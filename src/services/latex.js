@@ -1,13 +1,3 @@
-const MONTHS = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
-  return `${d.getDate()} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`
-}
-
 function escapeLatex(text) {
   return text.replace(/[\\&%$#_{}~^]/g, m => ({
     '\\': '\\textbackslash{}',
@@ -17,32 +7,91 @@ function escapeLatex(text) {
   })[m])
 }
 
-function buildQuestionsBlock(questions, options) {
+function buildQuestionsBlock(questions) {
   return questions
     .filter(q => q.latex)
     .map(q => {
       let item = '\\item'
       if (q.points) item += ` \\textbf{(${q.points} pts)}`
       item += `\n${q.latex}`
-      const space = options.perQuestionSpace ? (q.answerSpace || 0) : (options.answerSpace ? options.answerSpaceCm : 0)
-      if (space > 0) item += `\n\\vspace{${space}cm}`
       return item
     })
     .join('\n\n')
 }
 
-export function buildTexDocument(questions, examMeta, course, options = {}, customTemplate = null) {
-  const title = examMeta.title || 'Examen de Matemáticas'
-  const date = formatDate(examMeta.date)
-  const teacher = examMeta.teacher || ''
-  const className = examMeta.className || ''
-  const modelo = examMeta.modelo || ''
-  const questionsBlock = buildQuestionsBlock(questions, options)
+export function buildHeaderLatex(examMeta, course, options = {}, fontSize = 12) {
+  const lines = []
+  const titleSize = Math.round(fontSize * 1.7)
+  const titleSkip = Math.round(titleSize * 1.2)
+  const nameSize = Math.round(fontSize * 1.15)
+  const nameSkip = Math.round(nameSize * 1.2)
+
+  if (examMeta.title) {
+    lines.push(`\\begin{center}`)
+    lines.push(`{\\fontsize{${titleSize}}{${titleSkip}}\\selectfont \\textbf{${escapeLatex(examMeta.title)}}}`)
+    lines.push(`\\end{center}`)
+    lines.push('')
+  }
+
+  const datePart = examMeta.date ? escapeLatex(examMeta.date) : ''
+  const courseLabel = examMeta.className ? 'CLASE' : 'CURSO'
+  const courseValue = examMeta.className ? `${escapeLatex(course)} ${escapeLatex(examMeta.className)}` : escapeLatex(course)
+
+  const rows = []
+  if (datePart) rows.push(`\\textbf{FECHA:} & ${datePart}`)
+  rows.push(`\\textbf{${courseLabel}:} & ${courseValue}`)
+  if (examMeta.modelo) rows.push(`\\textbf{MODELO:} & ${escapeLatex(examMeta.modelo)}`)
+
+  const tabular = `\\begin{tabular}{rr}\n${rows.join(' \\\\\n')}\n\\end{tabular}`
+
+  if (examMeta.teacher) {
+    lines.push(`\\noindent`)
+    lines.push(`\\begin{minipage}[t]{0.4\\textwidth}`)
+    lines.push(`\\textbf{PROFESOR:} ${escapeLatex(examMeta.teacher)}`)
+    lines.push(`\\end{minipage}%`)
+    lines.push(`\\hfill`)
+    lines.push(`\\begin{minipage}[t]{0.5\\textwidth}`)
+    lines.push(`\\raggedleft`)
+    lines.push(tabular)
+    lines.push(`\\end{minipage}`)
+  } else {
+    lines.push(`\\begin{flushright}`)
+    lines.push(tabular)
+    lines.push(`\\end{flushright}`)
+  }
+  lines.push('')
+
+  if (options.instructions?.trim()) {
+    for (const line of options.instructions.split('\n')) {
+      if (line.trim()) lines.push(`\\noindent ${escapeLatex(line.trim())}`)
+    }
+    lines.push('')
+  }
+
+  lines.push('\\vspace{0.3cm}')
+  lines.push('\\noindent\\rule{\\textwidth}{0.4pt}')
+  lines.push('\\vspace{0.3cm}')
+  lines.push('')
+
+  lines.push(`\\noindent {\\fontsize{${nameSize}}{${nameSkip}}\\selectfont \\textbf{NOMBRE:}}`)
+  lines.push('')
+  lines.push('\\vspace{0.5cm}')
+
+  return lines.join('\n')
+}
+
+export function buildTexDocument(questions, examMeta, course, options = {}, customTemplate = null, fontSize = 12) {
+  const questionsBlock = buildQuestionsBlock(questions)
   const totalPoints = questions.filter(q => q.latex).reduce((sum, q) => sum + (q.points || 0), 0)
 
   if (customTemplate) {
+    const title = examMeta.title || ''
+    const date = examMeta.date || ''
+    const teacher = examMeta.teacher || ''
+    const className = examMeta.className || ''
+    const modelo = examMeta.modelo || ''
+
     let studentLine = 'Nombre del alumno/a: \\hrulefill'
-    if (totalPoints > 0) studentLine += `\n\n\\hfill \\textbf{Total: ${totalPoints} puntos}`
 
     let beforeEnum = ''
     if (options.instructions?.trim()) {
@@ -59,25 +108,14 @@ export function buildTexDocument(questions, examMeta, course, options = {}, cust
       .replace('%%STUDENT%%', studentLine)
       .replace('%%QUESTIONS%%', questionsBlock)
       .replace('\\begin{enumerate}', beforeEnum + '\\begin{enumerate}')
+      .replace('\\begin{document}', `\\begin{document}\n\n\\fontsize{${fontSize}}{${Math.round(fontSize * 1.2)}}\\selectfont`)
   }
 
-  const header = [
-    course && className ? `${course} — ${className}` : course || className,
-    teacher ? `Profesor/a: ${teacher}` : '',
-    date,
-  ].filter(Boolean).join(' \\hfill ')
+  const header = buildHeaderLatex(examMeta, course, options, fontSize)
 
-  const modeloLine = modelo ? `\\noindent Modelo: ${modelo}\n\n` : ''
+  let afterPoints = ''
 
-  let afterName = ''
-  if (totalPoints > 0) afterName = `\n\\hfill \\textbf{Total: ${totalPoints} puntos}\n`
-
-  let instructionsBlock = ''
-  if (options.instructions?.trim()) {
-    instructionsBlock = `\\noindent \\textit{${escapeLatex(options.instructions.trim())}}\n\n\\vspace{0.3cm}\n`
-  }
-
-  return `\\documentclass[a4paper,12pt]{article}
+  return `\\documentclass[a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
 \\usepackage[spanish]{babel}
@@ -88,19 +126,11 @@ export function buildTexDocument(questions, examMeta, course, options = {}, cust
 
 \\begin{document}
 
-\\begin{center}
-{\\Large \\textbf{${title}}}
-\\end{center}
+\\fontsize{${fontSize}}{${Math.round(fontSize * 1.2)}}\\selectfont
 
-\\noindent ${header}
-
-\\vspace{0.5cm}
-
-${modeloLine}\\noindent Nombre del alumno/a: \\hrulefill
-${afterName}
-\\vspace{0.5cm}
-
-${instructionsBlock}\\begin{enumerate}
+${header}
+${afterPoints}
+\\begin{enumerate}
 ${questionsBlock}
 \\end{enumerate}
 

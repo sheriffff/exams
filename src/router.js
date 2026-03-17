@@ -6,7 +6,9 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', component: HomePage },
-    { path: '/crear', component: ExamEditor },
+    { path: '/create', component: ExamEditor },
+    { path: '/templates/:id?', component: () => import('@/pages/TemplateEditor.vue') },
+    { path: '/admin', component: () => import('@/pages/AdminPanel.vue') },
   ],
 })
 
