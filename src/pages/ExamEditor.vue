@@ -285,7 +285,7 @@ onUnmounted(() => {
 
           <div class="flex items-center gap-3 mt-4">
             <span class="text-[10px] text-gray-400 font-bold">A</span>
-            <input type="range" v-model.number="fontSize" min="8" max="20" step="2" class="flex-1 accent-primary-600" />
+            <input type="range" v-model.number="fontSize" min="12" max="16" step="1" class="flex-1 accent-primary-600" />
             <span class="text-lg text-gray-400 font-bold">A</span>
           </div>
         </div>
