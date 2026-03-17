@@ -120,7 +120,7 @@ export function buildTexDocument(questions, examMeta, course, options = {}, cust
 \\usepackage[T1]{fontenc}
 \\usepackage[spanish]{babel}
 \\usepackage{amsmath,amssymb}
-\\usepackage[margin=2.5cm]{geometry}
+\\usepackage[margin=1.5cm]{geometry}
 
 \\pagestyle{empty}
 
