@@ -7,7 +7,6 @@ const router = createRouter({
   routes: [
     { path: '/', component: HomePage },
     { path: '/create', component: ExamEditor },
-    { path: '/templates/:id?', component: () => import('@/pages/TemplateEditor.vue') },
     { path: '/admin', component: () => import('@/pages/AdminPanel.vue') },
   ],
 })

@@ -3,7 +3,6 @@ import { ref, computed, watch, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import QuestionRow from '@/components/QuestionRow.vue'
 import { buildTexDocument, compilePdf, downloadBlob } from '@/services/latex'
-import { getTemplates } from '@/services/templates'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -17,8 +16,6 @@ const courses = ['1 ESO', '2 ESO', '3 ESO', '4 ESO', '1 Bachillerato', '2 Bachil
 const course = ref('1 ESO')
 const questions = ref([])
 const generating = ref(false)
-const templates = ref(getTemplates())
-const selectedTemplateId = ref(null)
 const fontSize = ref(12)
 
 const examMeta = ref({
@@ -58,7 +55,7 @@ let headerBlobUrl = null
 
 function headerTex() {
   const meta = { ...examMeta.value, date: formattedDate.value }
-  return buildTexDocument([], meta, course.value, examOptions.value, null, fontSize.value)
+  return buildTexDocument([], meta, course.value, examOptions.value, fontSize.value)
     .replace('[a4paper]', '')
     .replace('[margin=2.5cm]', '[paperwidth=19cm,paperheight=14.85cm,margin=1.5cm]')
 }
@@ -117,9 +114,8 @@ const hasQuestions = computed(() => questions.value.some(q => q.latex))
 async function generateExam() {
   generating.value = true
   try {
-    const tpl = selectedTemplateId.value ? templates.value.find(t => t.id === selectedTemplateId.value)?.texTemplate : null
     const meta = { ...examMeta.value, date: formattedDate.value }
-    const tex = buildTexDocument(questions.value, meta, course.value, examOptions.value, tpl, fontSize.value)
+    const tex = buildTexDocument(questions.value, meta, course.value, examOptions.value, fontSize.value)
     const blob = await compilePdf(tex)
     const filename = (examMeta.value.title || 'examen').replace(/\s+/g, '_') + '.pdf'
     downloadBlob(blob, filename)
@@ -225,14 +221,6 @@ onUnmounted(() => {
                   />
                 </div>
               </div>
-            </div>
-
-            <div v-if="templates.length">
-              <label class="block text-sm text-gray-500 mb-1.5 font-medium">Plantilla</label>
-              <select v-model="selectedTemplateId" class="w-full border border-gray-200/80 rounded-lg px-3 py-2.5 text-base bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all">
-                <option :value="null">Por defecto</option>
-                <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}</option>
-              </select>
             </div>
 
             <div v-if="showField.title">

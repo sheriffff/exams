@@ -80,40 +80,10 @@ export function buildHeaderLatex(examMeta, course, options = {}, fontSize = 12) 
   return lines.join('\n')
 }
 
-export function buildTexDocument(questions, examMeta, course, options = {}, customTemplate = null, fontSize = 12) {
+export function buildTexDocument(questions, examMeta, course, options = {}, fontSize = 12) {
   const questionsBlock = buildQuestionsBlock(questions)
-  const totalPoints = questions.filter(q => q.latex).reduce((sum, q) => sum + (q.points || 0), 0)
-
-  if (customTemplate) {
-    const title = examMeta.title || ''
-    const date = examMeta.date || ''
-    const teacher = examMeta.teacher || ''
-    const className = examMeta.className || ''
-    const modelo = examMeta.modelo || ''
-
-    let studentLine = 'Nombre del alumno/a: \\hrulefill'
-
-    let beforeEnum = ''
-    if (options.instructions?.trim()) {
-      beforeEnum = `\\noindent \\textit{${escapeLatex(options.instructions.trim())}}\n\n\\vspace{0.3cm}\n\n`
-    }
-
-    return customTemplate
-      .replace('%%TITLE%%', title)
-      .replace('%%TEACHER%%', teacher)
-      .replace('%%DATE%%', date)
-      .replace('%%COURSE%%', course || '')
-      .replace('%%CLASS%%', className)
-      .replace('%%MODELO%%', modelo ? `Modelo: ${modelo}` : '')
-      .replace('%%STUDENT%%', studentLine)
-      .replace('%%QUESTIONS%%', questionsBlock)
-      .replace('\\begin{enumerate}', beforeEnum + '\\begin{enumerate}')
-      .replace('\\begin{document}', `\\begin{document}\n\n\\fontsize{${fontSize}}{${Math.round(fontSize * 1.2)}}\\selectfont`)
-  }
 
   const header = buildHeaderLatex(examMeta, course, options, fontSize)
-
-  let afterPoints = ''
 
   return `\\documentclass[a4paper]{article}
 \\usepackage[utf8]{inputenc}
@@ -129,7 +99,6 @@ export function buildTexDocument(questions, examMeta, course, options = {}, cust
 \\fontsize{${fontSize}}{${Math.round(fontSize * 1.2)}}\\selectfont
 
 ${header}
-${afterPoints}
 \\begin{enumerate}
 ${questionsBlock}
 \\end{enumerate}
