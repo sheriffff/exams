@@ -4,6 +4,9 @@ import { RouterLink } from 'vue-router'
 import QuestionRow from '@/components/QuestionRow.vue'
 import { buildTexDocument, buildSolutionTexDocument, compilePdf, downloadBlob } from '@/services/latex'
 import { solveQuestion } from '@/services/llm'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -19,8 +22,9 @@ const questions = ref([])
 const generating = ref(false)
 const generatingSolution = ref(false)
 const fontSize = ref(12)
-const FONT_SIZES = [12, 14, 17]
-const headerCollapsed = ref(false)
+const FONT_SIZES = [12, 14]
+const headerCollapsed = ref(true)
+const questionsCollapsed = ref(false)
 
 const examMeta = ref({
   title: '',
@@ -52,23 +56,42 @@ const examOptions = computed(() => ({
   instructions: instructions.value.filter(i => i.trim()).join('\n'),
 }))
 
-const headerPreviewUrl = ref(null)
+const headerCanvasRef = ref(null)
+const headerRendered = ref(false)
 const compilingHeader = ref(false)
 let headerDebounce = null
-let headerBlobUrl = null
+let headerRenderTask = null
+
+const PREVIEW_SAMPLE_QUESTIONS = [
+  { latex: 'Este será el enunciado del ejercicio 1.', points: 2 },
+]
 
 function headerTex() {
   const meta = { ...examMeta.value, date: formattedDate.value }
-  return buildTexDocument([], meta, course.value, examOptions.value, fontSize.value)
+  return buildTexDocument(PREVIEW_SAMPLE_QUESTIONS, meta, course.value, examOptions.value, fontSize.value)
 }
 
 async function compileHeaderPreview() {
   compilingHeader.value = true
   try {
     const blob = await compilePdf(headerTex())
-    if (headerBlobUrl) URL.revokeObjectURL(headerBlobUrl)
-    headerBlobUrl = URL.createObjectURL(blob)
-    headerPreviewUrl.value = headerBlobUrl + '#toolbar=0&view=FitWidth'
+    const data = await blob.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data }).promise
+    const page = await pdf.getPage(1)
+    const canvas = headerCanvasRef.value
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const baseViewport = page.getViewport({ scale: 1 })
+    const targetWidth = canvas.clientWidth || 600
+    const scale = (targetWidth / baseViewport.width) * dpr * 1.5
+    const viewport = page.getViewport({ scale })
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    const ctx = canvas.getContext('2d')
+    if (headerRenderTask) headerRenderTask.cancel()
+    headerRenderTask = page.render({ canvasContext: ctx, viewport })
+    await headerRenderTask.promise
+    headerRendered.value = true
   } catch {
   } finally {
     compilingHeader.value = false
@@ -192,7 +215,7 @@ function toggleCollapse(id) {
 }
 
 onUnmounted(() => {
-  if (headerBlobUrl) URL.revokeObjectURL(headerBlobUrl)
+  if (headerRenderTask) headerRenderTask.cancel()
   clearTimeout(headerDebounce)
 })
 </script>
@@ -352,47 +375,63 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="w-1/2 shrink-0 rounded-t-lg border border-b-0 border-gray-200 overflow-hidden relative bg-white">
-            <iframe v-if="headerPreviewUrl" :src="headerPreviewUrl" class="w-full border-0" style="height: 260px" />
+          <div class="w-1/2 shrink-0 rounded-lg border border-gray-200 overflow-hidden relative bg-white" style="aspect-ratio: 210 / 99;">
+            <canvas ref="headerCanvasRef" class="block w-full h-auto" />
             <div v-if="compilingHeader" class="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center gap-2">
               <svg class="w-5 h-5 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
             </div>
-            <div v-if="!headerPreviewUrl && !compilingHeader" class="flex items-center justify-center h-[260px] text-gray-300 text-xs">
+            <div v-if="!headerRendered && !compilingHeader" class="absolute inset-0 flex items-center justify-center text-gray-300 text-xs">
               Cargando vista previa…
             </div>
           </div>
         </div>
       </div>
 
-      <div class="space-y-4">
-        <QuestionRow
-          v-for="(q, index) in questions"
-          :key="q.id"
-          v-model:prompt="q.prompt"
-          v-model:latex="q.latex"
-          v-model:title="q.title"
-          v-model:points="q.points"
-          v-model:difficulty="q.difficulty"
-          v-model:question-type="q.questionType"
-          :course="course"
-          :index="index + 1"
-          :collapsed="q.collapsed"
-          :can-move-up="index > 0"
-          :can-move-down="index < questions.length - 1"
-          @remove="removeQuestion(q.id)"
-          @move-up="moveQuestion(q.id, -1)"
-          @move-down="moveQuestion(q.id, 1)"
-          @toggle-collapse="toggleCollapse(q.id)"
-        />
-      </div>
+      <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8">
+        <div
+          class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+          :class="{ 'border-b border-gray-100': !questionsCollapsed }"
+          @click="questionsCollapsed = !questionsCollapsed"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ '-rotate-90': questionsCollapsed }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            <span class="text-sm font-semibold text-gray-500">Preguntas</span>
+            <span v-if="questions.length" class="text-xs text-gray-400">({{ questions.length }})</span>
+          </div>
+        </div>
 
-      <div class="mt-8 mb-6 flex items-center gap-4">
-        <button @click="addQuestion" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-sm text-primary-600 rounded-xl font-semibold border border-primary-200 hover:bg-primary-50 hover:border-primary-300 shadow-sm hover:shadow transition-all cursor-pointer">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          Añadir pregunta
-        </button>
+        <div v-show="!questionsCollapsed" class="p-5">
+          <div class="space-y-4">
+            <QuestionRow
+              v-for="(q, index) in questions"
+              :key="q.id"
+              v-model:prompt="q.prompt"
+              v-model:latex="q.latex"
+              v-model:title="q.title"
+              v-model:points="q.points"
+              v-model:difficulty="q.difficulty"
+              v-model:question-type="q.questionType"
+              :course="course"
+              :index="index + 1"
+              :collapsed="q.collapsed"
+              :can-move-up="index > 0"
+              :can-move-down="index < questions.length - 1"
+              @remove="removeQuestion(q.id)"
+              @move-up="moveQuestion(q.id, -1)"
+              @move-down="moveQuestion(q.id, 1)"
+              @toggle-collapse="toggleCollapse(q.id)"
+            />
+          </div>
+
+          <div :class="['flex items-center gap-4', questions.length ? 'mt-6' : '']">
+            <button @click="addQuestion" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-sm text-primary-600 rounded-xl font-semibold border border-primary-200 hover:bg-primary-50 hover:border-primary-300 shadow-sm hover:shadow transition-all cursor-pointer">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Añadir pregunta
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
