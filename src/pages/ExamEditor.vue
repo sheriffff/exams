@@ -115,6 +115,13 @@ const hasQuestions = computed(() => questions.value.some(q => q.latex))
 const totalPoints = computed(() => questions.value.reduce((sum, q) => sum + (q.points || 0), 0))
 const canGenerate = computed(() => hasQuestions.value && totalPoints.value === 10)
 
+const showDetailPicker = ref(false)
+const DETAIL_LEVELS = [
+  { key: 'bajo', label: 'Bajo', desc: 'Solo el resultado final' },
+  { key: 'normal', label: 'Normal', desc: 'Pasos clave sin explicar con texto' },
+  { key: 'largo', label: 'Largo', desc: 'Cada paso explicado con detalle' },
+]
+
 async function generateExam() {
   generating.value = true
   try {
@@ -130,12 +137,13 @@ async function generateExam() {
   }
 }
 
-async function generateSolution() {
+async function generateSolution(detailLevel = 'normal') {
+  showDetailPicker.value = false
   generatingSolution.value = true
   try {
     const valid = questions.value.filter(q => q.latex)
     const solutions = await Promise.all(
-      valid.map(q => solveQuestion(q.latex, course.value))
+      valid.map(q => solveQuestion(q.latex, course.value, detailLevel))
     )
     const meta = { ...examMeta.value, date: formattedDate.value }
     const tex = buildSolutionTexDocument(valid, solutions, meta, course.value, fontSize.value)
@@ -197,14 +205,14 @@ onUnmounted(() => {
     </div>
 
     <div class="max-w-6xl mx-auto px-6 py-6">
-      <div class="flex items-center gap-4 mb-6">
-        <a href="https://escuelia.es" class="wordmark" style="--wm-size: 1.75rem;">
+      <div class="flex items-center gap-4 mb-6 pb-5 border-b border-gray-200/70">
+        <a href="https://escuelia.es" class="wordmark" style="--wm-size: 1.75rem; --wm-ia-dy: 0em;">
           <span class="escuel">escuel</span><span class="ia">IA</span>
         </a>
         <div class="h-7 w-px bg-gray-300"></div>
-        <RouterLink to="/" class="text-sm font-semibold text-gray-600 hover:text-primary-600 transition-colors">
+        <span class="text-sm font-semibold text-gray-600">
           Generador de Exámenes de Matemáticas
-        </RouterLink>
+        </span>
       </div>
 
       <div class="flex items-center gap-3 mb-8">
@@ -436,12 +444,38 @@ onUnmounted(() => {
           </button>
           <button
             :disabled="!canGenerate || generatingSolution"
-            @click="generateSolution"
+            @click="showDetailPicker = true"
             class="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-bold rounded-xl hover:from-amber-400 hover:to-orange-400 shadow-sm hover:shadow disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:shadow-none transition-all cursor-pointer disabled:cursor-not-allowed"
           >
             <svg v-if="!generatingSolution" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4" /></svg>
             <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
             {{ generatingSolution ? 'Resolviendo…' : 'Solución' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showDetailPicker"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4"
+      @click.self="showDetailPicker = false"
+    >
+      <div class="bg-white rounded-2xl shadow-xl border border-white/50 max-w-sm w-full p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-base font-bold text-gray-800">Nivel de detalle</h3>
+          <button @click="showDetailPicker = false" class="text-gray-300 hover:text-gray-500 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div class="space-y-2">
+          <button
+            v-for="level in DETAIL_LEVELS"
+            :key="level.key"
+            @click="generateSolution(level.key)"
+            class="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-amber-400 hover:bg-amber-50/50 transition-all cursor-pointer group"
+          >
+            <div class="text-sm font-bold text-gray-800 group-hover:text-amber-600">{{ level.label }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">{{ level.desc }}</div>
           </button>
         </div>
       </div>

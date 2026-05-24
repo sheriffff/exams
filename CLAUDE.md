@@ -16,7 +16,7 @@ Nota: `package.json` fija `vite ^8.0.0-beta.13` mediante `overrides`. Es una bet
 
 ## Flujo principal
 
-1. Usuario escribe prompts en lenguaje natural por pregunta. Gemini devuelve LaTeX.
+1. Usuario escribe prompts en lenguaje natural por pregunta. OpenAI devuelve LaTeX.
 2. Las preguntas se ensamblan en un documento `.tex` completo con `buildTexDocument()`.
 3. El `.tex` se compila a PDF llamando al servicio externo `latex.ytotech.com`.
 4. Opcionalmente se genera un PDF de soluciones con `buildSolutionTexDocument()`.
@@ -28,6 +28,8 @@ Nota: `package.json` fija `vite ^8.0.0-beta.13` mediante `overrides`. Es una bet
 - `/admin` → `AdminPanel` (lazy, oculta)
 
 El admin se accede haciendo **triple click rápido sobre la palabra "por"** en el footer del HomePage. No hay enlace visible. Dentro, hay un check de password client-side con SHA-256 (decorativo, no es seguridad real). La página es un placeholder.
+
+Vue Router en modo `history`. Vercel reescribe todo a `index.html` salvo `/api/*` (ver `vercel.json`) para que F5 en cualquier ruta no devuelva 404.
 
 ## Páginas (`src/pages/`)
 
@@ -58,7 +60,7 @@ El admin se accede haciendo **triple click rápido sobre la palabra "por"** en e
 - `solve-question.md` — Generar la solución (usado para el PDF de soluciones)
 - `question-format.md` — Instrucciones de formato compartidas, se appendea a los tres primeros
 
-Para añadir un prompt nuevo: crear `.md`, importarlo en `gemini.js` con `?raw`, exponer una función que llame a `callGemini`.
+Para añadir un prompt nuevo: crear `.md`, importarlo en `llm.js` con `?raw`, exponer una función que llame a `callLLM`.
 
 ## Estilo
 

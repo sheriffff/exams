@@ -9,9 +9,10 @@ function fillTemplate(template, vars) {
 }
 
 function parseResponse(text) {
-  const clean = text.replace(/^```latex?\n?/, '').replace(/\n?```$/, '').trim()
-  const match = clean.match(/^TÍTULO:\s*(.+)\n---\n([\s\S]+)$/)
+  let clean = text.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim()
+  const match = clean.match(/^T[ÍI]TULO\s*:\s*(.+?)\s*(?:\n+-{2,}\n+|\s*[—–]\s*|\n+)([\s\S]+)$/i)
   if (match) return { title: match[1].trim(), latex: match[2].trim() }
+  clean = clean.replace(/^T[ÍI]TULO\s*:[^\n]*\n+(?:-{2,}\n+)?/i, '').trim()
   return { title: '', latex: clean }
 }
 
@@ -41,8 +42,15 @@ export async function iterateQuestion(latex, course, instruction) {
   return parseResponse(await callLLM(filled))
 }
 
-export async function solveQuestion(latex, course) {
-  const filled = fillTemplate(solveQuestionPrompt, { latex, course })
+const DETAIL_INSTRUCTIONS = {
+  bajo: 'Resuelve la pregunta de forma mínima: muestra solo el planteamiento imprescindible y la respuesta final. No incluyas pasos intermedios ni explicaciones con texto. Si hay operaciones, deja únicamente las estrictamente necesarias para llegar al resultado.',
+  normal: 'Resuelve la pregunta mostrando los pasos clave del cálculo, sin explicaciones extensas con texto. Incluye solo las operaciones matemáticas necesarias para llegar a la respuesta, sin titular cada paso ni justificar con prosa.',
+  largo: 'Resuelve la pregunta paso a paso, explicando cada paso con texto claro para que un alumno pueda entenderlo. Muestra todos los pasos intermedios con sus justificaciones.',
+}
+
+export async function solveQuestion(latex, course, detailLevel = 'normal') {
+  const detailInstruction = DETAIL_INSTRUCTIONS[detailLevel] || DETAIL_INSTRUCTIONS.normal
+  const filled = fillTemplate(solveQuestionPrompt, { latex, course, detailInstruction })
   const text = await callLLM(filled)
   return text.replace(/^```[\w]*\n?/gm, '').replace(/\n?```$/gm, '').trim()
 }

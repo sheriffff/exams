@@ -1,10 +1,12 @@
 ## Formato de respuesta
 
-Responde con EXACTAMENTE este formato (respeta las líneas "TÍTULO:" y "---"):
+Responde con EXACTAMENTE este formato (respeta los saltos de línea y los tres guiones literales `---`, NO uses ningún tipo de raya larga ni em dash):
 
 TÍTULO: (un título corto y descriptivo de la pregunta, máximo 8 palabras)
 ---
 (el LaTeX de la pregunta aquí)
+
+El título y los `---` deben ir cada uno en su propia línea. El enunciado empieza en una línea nueva debajo de `---`. NO incluyas el prefijo "TÍTULO:" dentro del propio enunciado.
 
 ## Reglas de formato para el LaTeX
 
