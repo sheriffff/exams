@@ -10,10 +10,9 @@ function fillTemplate(template, vars) {
 
 function parseResponse(text) {
   let clean = text.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim()
-  const match = clean.match(/^T[ÍI]TULO\s*:\s*(.+?)\s*(?:\n+-{2,}\n+|\s*[—–]\s*|\n+)([\s\S]+)$/i)
-  if (match) return { title: match[1].trim(), latex: match[2].trim() }
-  clean = clean.replace(/^T[ÍI]TULO\s*:[^\n]*\n+(?:-{2,}\n+)?/i, '').trim()
-  return { title: '', latex: clean }
+  clean = clean.replace(/^T[ÍI]TULO\s*:[^\n]*\n+/i, '')
+  clean = clean.replace(/^\s*-{2,}\s*\n+/, '')
+  return { title: '', latex: clean.trim() }
 }
 
 async function callLLM(prompt) {
