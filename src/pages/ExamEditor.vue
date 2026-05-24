@@ -197,6 +197,16 @@ onUnmounted(() => {
     </div>
 
     <div class="max-w-6xl mx-auto px-6 py-6">
+      <div class="flex items-center gap-4 mb-6">
+        <a href="https://escuelia.es" class="wordmark" style="--wm-size: 1.75rem;">
+          <span class="escuel">escuel</span><span class="ia">IA</span>
+        </a>
+        <div class="h-7 w-px bg-gray-300"></div>
+        <RouterLink to="/" class="text-sm font-semibold text-gray-600 hover:text-primary-600 transition-colors">
+          Generador de Exámenes de Matemáticas
+        </RouterLink>
+      </div>
+
       <div class="flex items-center gap-3 mb-8">
         <RouterLink to="/" class="p-2 rounded-xl text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

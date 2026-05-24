@@ -46,7 +46,7 @@ function handlePorClick() {
       </div>
 
       <div class="text-center mt-16 text-sm text-neutral-500">
-        <span @click.prevent="handlePorClick" class="cursor-default select-none">por</span> <a href="https://www.linkedin.com/in/sheriff-data" target="_blank" class="text-primary-600 hover:underline">Manuel López Sheriff</a>
+        <span @click.prevent="handlePorClick" class="cursor-default select-none">por</span> <a href="https://escuelia.es" class="wordmark align-middle ml-1" style="--wm-size: 1.1rem;"><span class="escuel">escuel</span><span class="ia">IA</span></a>
       </div>
     </div>
   </div>
