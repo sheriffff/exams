@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import LatexPreview from './LatexPreview.vue'
-import { generateQuestion, adjustDifficulty, iterateQuestion } from '@/services/gemini.js'
+import { generateQuestion, adjustDifficulty, iterateQuestion } from '@/services/llm.js'
 
 const props = defineProps({
   course: { type: String, required: true },
+  index: { type: Number, required: true },
   collapsed: { type: Boolean, default: false },
   canMoveUp: { type: Boolean, default: false },
   canMoveDown: { type: Boolean, default: false },
@@ -77,26 +78,30 @@ async function iterate() {
 <template>
   <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm hover:shadow-md transition-shadow">
     <div
-      class="flex items-center justify-between px-5 py-3.5 cursor-pointer select-none"
+      class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
       :class="{ 'border-b border-gray-100': !collapsed }"
       @click="emit('toggle-collapse')"
     >
       <div class="flex items-center gap-2.5 flex-1 min-w-0">
-        <div class="w-1.5 h-1.5 rounded-full shrink-0" :class="latex ? 'bg-accent-500' : 'bg-gray-300'" />
-        <span class="text-sm font-semibold text-gray-700 truncate">
-          {{ title || 'Nueva pregunta' }}
-        </span>
+        <span class="text-xs font-bold shrink-0 w-5 text-center" :class="latex ? 'text-accent-500' : 'text-gray-300'">{{ index }}</span>
+        <div class="flex items-center gap-1 shrink-0" @click.stop>
+          <button @click="points = Math.max(0, (points || 0) - 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <span class="text-xs font-semibold text-gray-500 w-6 text-center tabular-nums">{{ points || 0 }}</span>
+          <button @click="points = Math.min(10, (points || 0) + 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
+          </button>
+        </div>
+        <input
+          v-model="title"
+          type="text"
+          placeholder="Nueva pregunta"
+          class="text-sm font-semibold text-gray-700 bg-transparent border-none focus:outline-none placeholder-gray-400 w-full"
+          @click.stop
+        />
       </div>
       <div class="flex items-center gap-1.5" @click.stop>
-        <input
-          type="number"
-          v-model.number="points"
-          min="0"
-          max="10"
-          step="0.5"
-          placeholder="pts"
-          class="w-14 text-xs text-center border border-gray-200/80 rounded-lg px-1 py-1 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 placeholder-gray-300"
-        />
         <button
           :disabled="!canMoveUp"
           @click="emit('move-up')"

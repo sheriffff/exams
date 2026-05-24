@@ -19,16 +19,12 @@ function buildQuestionsBlock(questions) {
     .join('\n\n')
 }
 
-export function buildHeaderLatex(examMeta, course, options = {}, fontSize = 12) {
+export function buildHeaderLatex(examMeta, course, options = {}) {
   const lines = []
-  const titleSize = Math.round(fontSize * 1.7)
-  const titleSkip = Math.round(titleSize * 1.2)
-  const nameSize = Math.round(fontSize * 1.15)
-  const nameSkip = Math.round(nameSize * 1.2)
 
   if (examMeta.title) {
     lines.push(`\\begin{center}`)
-    lines.push(`{\\fontsize{${titleSize}}{${titleSkip}}\\selectfont \\textbf{${escapeLatex(examMeta.title)}}}`)
+    lines.push(`{\\LARGE \\textbf{${escapeLatex(examMeta.title)}}}`)
     lines.push(`\\end{center}`)
     lines.push('')
   }
@@ -73,7 +69,7 @@ export function buildHeaderLatex(examMeta, course, options = {}, fontSize = 12) 
   lines.push('\\vspace{0.3cm}')
   lines.push('')
 
-  lines.push(`\\noindent {\\fontsize{${nameSize}}{${nameSkip}}\\selectfont \\textbf{NOMBRE:}}`)
+  lines.push(`\\noindent \\textbf{NOMBRE:}`)
   lines.push('')
   lines.push('\\vspace{0.5cm}')
 
@@ -83,9 +79,9 @@ export function buildHeaderLatex(examMeta, course, options = {}, fontSize = 12) 
 export function buildTexDocument(questions, examMeta, course, options = {}, fontSize = 12) {
   const questionsBlock = buildQuestionsBlock(questions)
 
-  const header = buildHeaderLatex(examMeta, course, options, fontSize)
+  const header = buildHeaderLatex(examMeta, course, options)
 
-  return `\\documentclass[a4paper]{article}
+  return `\\documentclass[a4paper,${fontSize}pt]{extarticle}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
 \\usepackage[spanish]{babel}
@@ -96,11 +92,49 @@ export function buildTexDocument(questions, examMeta, course, options = {}, font
 
 \\begin{document}
 
-\\fontsize{${fontSize}}{${Math.round(fontSize * 1.2)}}\\selectfont
-
 ${header}
 \\begin{enumerate}
 ${questionsBlock}
+\\end{enumerate}
+
+\\end{document}
+`
+}
+
+export function buildSolutionTexDocument(questions, solutions, examMeta, course, fontSize = 12) {
+  const title = examMeta.title ? escapeLatex(examMeta.title) : 'Examen'
+  const valid = questions.filter(q => q.latex)
+  const items = valid
+    .map((q, i) => {
+      let item = '\\item'
+      if (q.points) item += ` \\textbf{(${q.points} pts)}`
+      item += `\n${q.latex}`
+      item += `\n\n\\vspace{0.3cm}\n\\textbf{Solución:}\n\\vspace{0.2cm}\n\n${solutions[i] || 'Sin solución'}`
+      return item
+    })
+    .join('\n\n\\vspace{0.5cm}\n\n')
+
+  return `\\documentclass[a4paper,${fontSize}pt]{extarticle}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage[spanish]{babel}
+\\usepackage{amsmath,amssymb}
+\\usepackage[margin=1.5cm]{geometry}
+
+\\pagestyle{empty}
+
+\\begin{document}
+
+\\begin{center}
+{\\LARGE \\textbf{${title} — Soluciones}}
+\\end{center}
+
+\\vspace{0.3cm}
+\\noindent\\rule{\\textwidth}{0.4pt}
+\\vspace{0.5cm}
+
+\\begin{enumerate}
+${items}
 \\end{enumerate}
 
 \\end{document}
