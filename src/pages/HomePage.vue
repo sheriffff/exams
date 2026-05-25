@@ -59,6 +59,7 @@ function handlePorClick() {
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-500 to-accent-600 text-white flex items-center justify-center mb-3 text-lg font-bold">2</div>
           <h3 class="font-bold text-neutral-900 mb-1">Descarga el examen y las soluciones</h3>
           <p class="text-sm text-neutral-600">Dos PDFs listos para imprimir: el de los alumnos y el resuelto para ti.</p>
+          <a href="/ejemplo.pdf" target="_blank" class="inline-block mt-2 text-xs text-primary-600 hover:text-primary-700 underline underline-offset-2">Descargar ejemplo</a>
         </div>
       </div>
 
