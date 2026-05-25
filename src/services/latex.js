@@ -148,6 +148,8 @@ function buildMessagePage() {
 
 \\vspace{1.5cm}
 
+{\\large
+
 \\noindent Hola, soy Manu.
 
 \\vspace{0.5cm}
@@ -164,11 +166,13 @@ function buildMessagePage() {
 
 \\vspace{0.5cm}
 
-\\noindent \\Letter\\ \\texttt{manuel.lopez.sheriff@gmail.com}
+\\noindent \\texttt{manuel.lopez.sheriff@gmail.com}
 
 \\vspace{0.5cm}
 
 \\noindent Y pásate por \\texttt{www.escuelia.es} para ver el resto :)
+
+}
 
 \\newpage
 `
