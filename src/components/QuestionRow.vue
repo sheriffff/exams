@@ -13,7 +13,6 @@ const props = defineProps({
 
 const prompt = defineModel('prompt', { type: String, default: '' })
 const latex = defineModel('latex', { type: String, default: '' })
-const title = defineModel('title', { type: String, default: '' })
 
 const emit = defineEmits(['remove', 'move-up', 'move-down', 'toggle-collapse'])
 
@@ -36,7 +35,6 @@ async function generate() {
   try {
     const result = await generateQuestion(prompt.value, props.course, difficulty.value, questionType.value)
     latex.value = result.latex
-    title.value = result.title
   } catch (e) {
     console.error('Error generating question:', e)
   } finally {
@@ -50,7 +48,6 @@ async function adjust(direction) {
   try {
     const result = await adjustDifficulty(latex.value, props.course, direction)
     latex.value = result.latex
-    title.value = result.title
   } catch (e) {
     console.error('Error adjusting difficulty:', e)
   } finally {
@@ -64,7 +61,6 @@ async function iterate() {
   try {
     const result = await iterateQuestion(latex.value, props.course, iterationText.value)
     latex.value = result.latex
-    title.value = result.title
     iterationText.value = ''
   } catch (e) {
     console.error('Error iterating question:', e)
@@ -83,13 +79,7 @@ async function iterate() {
     >
       <div class="flex items-center gap-2.5 flex-1 min-w-0">
         <span class="text-xs font-bold shrink-0 w-5 text-center" :class="latex ? 'text-accent-500' : 'text-gray-300'">{{ index }}</span>
-        <input
-          v-model="title"
-          type="text"
-          placeholder="Nueva pregunta"
-          class="text-sm font-semibold text-gray-700 bg-transparent border-none focus:outline-none placeholder-gray-400 w-full"
-          @click.stop
-        />
+        <span class="text-sm font-semibold text-gray-700">Pregunta {{ index }}</span>
       </div>
       <div class="flex items-center gap-1.5" @click.stop>
         <button

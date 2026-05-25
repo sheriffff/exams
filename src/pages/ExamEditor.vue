@@ -52,8 +52,11 @@ function removeInstruction(index) {
   if (instructions.value.length === 0) instructions.value = ['']
 }
 
+const pointsEnabled = ref(false)
+
 const examOptions = computed(() => ({
   instructions: instructions.value.filter(i => i.trim()).join('\n'),
+  includePoints: pointsEnabled.value,
 }))
 
 const headerCanvasRef = ref(null)
@@ -136,12 +139,10 @@ function disableField(key) {
 
 const hasQuestions = computed(() => questions.value.some(q => q.latex))
 const totalPoints = computed(() => questions.value.reduce((sum, q) => sum + (q.points || 0), 0))
-const pointsAssigned = computed(() => totalPoints.value > 0)
-const pointsValid = computed(() => !pointsAssigned.value || totalPoints.value === 10)
+const pointsValid = computed(() => !pointsEnabled.value || totalPoints.value === 10)
 const canGenerate = computed(() => hasQuestions.value && pointsValid.value)
 
 const showDetailPicker = ref(false)
-const showPointsPanel = ref(false)
 
 function adjustPoints(id, delta) {
   const q = questions.value.find(q => q.id === id)
@@ -179,7 +180,7 @@ async function generateSolution(detailLevel = 'normal') {
       valid.map(q => solveQuestion(q.latex, course.value, detailLevel))
     )
     const meta = { ...examMeta.value, date: formattedDate.value }
-    const tex = buildSolutionTexDocument(valid, solutions, meta, course.value, fontSize.value)
+    const tex = buildSolutionTexDocument(valid, solutions, meta, course.value, fontSize.value, { includePoints: pointsEnabled.value })
     const blob = await compilePdf(tex)
     const filename = (examMeta.value.title || 'examen').replace(/\s+/g, '_') + '_soluciones.pdf'
     downloadBlob(blob, filename)
@@ -198,7 +199,6 @@ function addQuestion() {
     id: nextId++,
     prompt: '',
     latex: '',
-    title: '',
     collapsed: false,
     points: 0,
     difficulty: 'NORMAL',
@@ -295,7 +295,6 @@ onUnmounted(() => {
               :key="q.id"
               v-model:prompt="q.prompt"
               v-model:latex="q.latex"
-              v-model:title="q.title"
               v-model:difficulty="q.difficulty"
               v-model:question-type="q.questionType"
               :course="course"
@@ -458,42 +457,56 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
-        <button
-          @click="showPointsPanel = !showPointsPanel"
-          class="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
-        >
-          <div class="flex items-center gap-2">
-            <svg class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{ '-rotate-90': !showPointsPanel }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Asignar puntuaciones</span>
+      <div v-if="questions.length" class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8">
+        <div class="flex items-center justify-between px-5 py-3" :class="{ 'border-b border-gray-100': pointsEnabled }">
+          <div class="flex items-center gap-3">
+            <span class="text-sm font-semibold text-gray-500">Puntuaciones</span>
+            <span
+              v-if="pointsEnabled"
+              class="text-sm font-bold"
+              :class="totalPoints === 10 ? 'text-accent-500' : 'text-red-500'"
+            >{{ totalPoints }} / 10</span>
           </div>
-          <span
-            class="text-sm font-bold"
-            :class="!pointsAssigned ? 'text-gray-300' : (totalPoints === 10 ? 'text-accent-500' : 'text-red-500')"
-          >{{ totalPoints }} / 10</span>
-        </button>
-
-        <div v-show="showPointsPanel" class="mt-3 space-y-1">
-          <div v-for="(q, i) in questions" :key="q.id" class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-300 w-4 text-right">{{ i + 1 }}</span>
-            <div class="flex items-center gap-1 shrink-0">
-              <button @click="adjustPoints(q.id, -0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
-              </button>
-              <span class="text-xs font-semibold text-gray-500 w-6 text-center tabular-nums">{{ q.points || 0 }}</span>
-              <button @click="adjustPoints(q.id, 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
-              </button>
-            </div>
-            <span class="text-sm text-gray-600 flex-1 truncate">{{ q.title || 'Nueva pregunta' }}</span>
-          </div>
+          <button
+            role="switch"
+            :aria-checked="pointsEnabled"
+            @click="pointsEnabled = !pointsEnabled"
+            :class="[
+              pointsEnabled ? 'bg-gradient-to-r from-primary-600 to-accent-500' : 'bg-gray-200',
+              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer'
+            ]"
+          >
+            <span
+              :class="pointsEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'"
+              class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow"
+            />
+          </button>
         </div>
 
-        <p v-if="pointsAssigned && totalPoints !== 10" class="mt-2.5 text-xs text-red-500 font-medium">
-          Si asignas puntos, deben sumar 10.
-        </p>
+        <div v-show="pointsEnabled" class="p-5">
+          <div class="space-y-1 max-w-xs">
+            <div v-for="(q, i) in questions" :key="q.id" class="flex items-center gap-2">
+              <span class="text-xs font-bold text-gray-300 w-4 text-right">{{ i + 1 }}</span>
+              <div class="flex items-center gap-1 shrink-0">
+                <button @click="adjustPoints(q.id, -0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <span class="text-xs font-semibold text-gray-500 w-6 text-center tabular-nums">{{ q.points || 0 }}</span>
+                <button @click="adjustPoints(q.id, 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
+                </button>
+              </div>
+              <span class="text-sm text-gray-600 flex-1 truncate">Pregunta {{ i + 1 }}</span>
+            </div>
+            <p v-if="totalPoints !== 10" class="mt-3 text-xs text-red-500 font-medium">
+              Los puntos deben sumar 10.
+            </p>
+          </div>
+        </div>
+      </div>
 
-        <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">
+      <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
+        <div class="flex gap-2">
           <button
             :disabled="!canGenerate || generating"
             @click="generateExam"

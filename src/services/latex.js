@@ -7,12 +7,12 @@ function escapeLatex(text) {
   })[m])
 }
 
-function buildQuestionsBlock(questions) {
+function buildQuestionsBlock(questions, includePoints = true) {
   return questions
     .filter(q => q.latex)
     .map(q => {
       let item = '\\item'
-      if (q.points) item += ` \\textbf{(${q.points} pts)}`
+      if (includePoints && q.points) item += ` \\textbf{(${q.points} pts)}`
       item += `\n${q.latex}`
       return item
     })
@@ -77,7 +77,7 @@ export function buildHeaderLatex(examMeta, course, options = {}) {
 }
 
 export function buildTexDocument(questions, examMeta, course, options = {}, fontSize = 12) {
-  const questionsBlock = buildQuestionsBlock(questions)
+  const questionsBlock = buildQuestionsBlock(questions, options.includePoints !== false)
 
   const header = buildHeaderLatex(examMeta, course, options)
 
@@ -101,13 +101,14 @@ ${questionsBlock}
 `
 }
 
-export function buildSolutionTexDocument(questions, solutions, examMeta, course, fontSize = 12) {
+export function buildSolutionTexDocument(questions, solutions, examMeta, course, fontSize = 12, options = {}) {
   const title = examMeta.title ? escapeLatex(examMeta.title) : 'Examen'
   const valid = questions.filter(q => q.latex)
+  const includePoints = options.includePoints !== false
   const items = valid
     .map((q, i) => {
       let item = '\\item'
-      if (q.points) item += ` \\textbf{(${q.points} pts)}`
+      if (includePoints && q.points) item += ` \\textbf{(${q.points} pts)}`
       item += `\n${q.latex}`
       item += `\n\n\\vspace{0.3cm}\n\\textbf{Solución:}\n\\vspace{0.2cm}\n\n${solutions[i] || 'Sin solución'}`
       return item
