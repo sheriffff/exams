@@ -76,3 +76,7 @@ Utility custom: `.glass` (fondo blanco translúcido + blur, para tarjetas).
 - Añadir la var por CLI (`vercel env add OPENAI_API_KEY`), no por dashboard. El dashboard auto-marca como "sensitive" los valores tipo `sk-...` y eso impide pasarlos al entorno Development, rompiendo `vercel dev`. La CLI no aplica esa auto-detección.
 - Para dev local: `vercel env pull` (baja las env vars al `.env.local` gitignorado) y luego `vercel dev`. `npm run dev` solo arranca Vite y no expone `/api`.
 - La compilación de PDF depende de `latex.ytotech.com` (externo). Si se cae, la generación de PDF cae con él.
+
+## Analytics
+
+Vercel Analytics y Speed Insights están integrados vía `@vercel/analytics/vue` y `@vercel/speed-insights/vue`, con los componentes `<Analytics />` y `<SpeedInsights />` montados en `src/App.vue`. Sin config adicional; datos en el dashboard de Vercel.

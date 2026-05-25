@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "katex": "^0.16.33",
     "pdfjs-dist": "^5.5.207",
     "tailwindcss": "^4.2.1",
