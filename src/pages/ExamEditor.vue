@@ -17,7 +17,7 @@ function formatDate(iso) {
 }
 
 const courses = ['1 ESO', '2 ESO', '3 ESO', '4 ESO', '1 Bachillerato', '2 Bachillerato']
-const course = ref('1 ESO')
+const course = ref('')
 const questions = ref([])
 const generating = ref(false)
 const generatingSolution = ref(false)
@@ -136,9 +136,19 @@ function disableField(key) {
 
 const hasQuestions = computed(() => questions.value.some(q => q.latex))
 const totalPoints = computed(() => questions.value.reduce((sum, q) => sum + (q.points || 0), 0))
-const canGenerate = computed(() => hasQuestions.value && totalPoints.value === 10)
+const pointsAssigned = computed(() => totalPoints.value > 0)
+const pointsValid = computed(() => !pointsAssigned.value || totalPoints.value === 10)
+const canGenerate = computed(() => hasQuestions.value && pointsValid.value)
 
 const showDetailPicker = ref(false)
+const showPointsPanel = ref(false)
+
+function adjustPoints(id, delta) {
+  const q = questions.value.find(q => q.id === id)
+  if (!q) return
+  const next = Math.max(0, Math.min(10, (q.points || 0) + delta))
+  q.points = next
+}
 const DETAIL_LEVELS = [
   { key: 'bajo', label: 'Bajo', desc: 'Solo el resultado final' },
   { key: 'normal', label: 'Normal', desc: 'Pasos clave sin explicar con texto' },
@@ -247,19 +257,71 @@ onUnmounted(() => {
         <h1 class="text-2xl font-extrabold tracking-tight text-gray-900">Crear Examen</h1>
       </div>
 
-      <div class="flex items-center gap-1 mb-4">
-        <span class="text-xs text-gray-400 font-medium mr-2">Tamaño de texto</span>
-        <div class="flex items-center rounded-lg border border-gray-200/80 overflow-hidden">
+      <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-5 mb-6">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Curso</div>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
           <button
-            v-for="s in FONT_SIZES"
-            :key="s"
-            @click="fontSize = s"
+            v-for="c in courses"
+            :key="c"
+            @click="course = c"
             :class="[
-              fontSize === s ? 'bg-primary-100 text-primary-700' : 'bg-white/80 text-gray-400 hover:bg-gray-50',
-              'px-2.5 py-1.5 font-bold transition-all cursor-pointer'
+              course === c
+                ? 'bg-gradient-to-r from-primary-600 to-accent-500 text-white shadow-sm border-transparent'
+                : 'bg-white/80 text-gray-600 hover:bg-primary-50 hover:text-primary-700 border-gray-200',
+              'px-3 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer border'
             ]"
-            :style="{ fontSize: (s - 2) + 'px' }"
-          >A</button>
+          >{{ c }}</button>
+        </div>
+        <p v-if="!course" class="text-xs text-gray-400 mt-3">Elige un curso para empezar a crear preguntas.</p>
+      </div>
+
+      <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8" :class="{ 'opacity-50 pointer-events-none': !course }">
+        <div
+          class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
+          :class="{ 'border-b border-gray-100': !questionsCollapsed }"
+          @click="questionsCollapsed = !questionsCollapsed"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ '-rotate-90': questionsCollapsed }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            <span class="text-sm font-semibold text-gray-500">Preguntas</span>
+            <span v-if="questions.length" class="text-xs text-gray-400">({{ questions.length }})</span>
+          </div>
+        </div>
+
+        <div v-show="!questionsCollapsed" class="p-5">
+          <div class="space-y-4">
+            <QuestionRow
+              v-for="(q, index) in questions"
+              :key="q.id"
+              v-model:prompt="q.prompt"
+              v-model:latex="q.latex"
+              v-model:title="q.title"
+              v-model:difficulty="q.difficulty"
+              v-model:question-type="q.questionType"
+              :course="course"
+              :index="index + 1"
+              :collapsed="q.collapsed"
+              :can-move-up="index > 0"
+              :can-move-down="index < questions.length - 1"
+              @remove="removeQuestion(q.id)"
+              @move-up="moveQuestion(q.id, -1)"
+              @move-down="moveQuestion(q.id, 1)"
+              @toggle-collapse="toggleCollapse(q.id)"
+            />
+          </div>
+
+          <div :class="['flex items-center gap-4', questions.length ? 'mt-6' : '']">
+            <button
+              @click="addQuestion"
+              :disabled="!course"
+              class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-sm text-primary-600 rounded-xl font-semibold border border-primary-200 hover:bg-primary-50 hover:border-primary-300 shadow-sm hover:shadow transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white/80 disabled:hover:border-primary-200"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              Añadir pregunta
+            </button>
+          </div>
         </div>
       </div>
 
@@ -281,13 +343,7 @@ onUnmounted(() => {
 
         <div v-show="!headerCollapsed" class="flex gap-5 p-5">
           <div class="flex-1 space-y-3">
-            <div class="flex gap-3">
-              <div class="flex-1">
-                <label class="block text-xs text-gray-500 mb-1 font-medium">Curso</label>
-                <select v-model="course" class="w-full border border-gray-200/80 rounded-lg px-3 py-2 text-sm bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all">
-                  <option v-for="c in courses" :key="c" :value="c">{{ c }}</option>
-                </select>
-              </div>
+            <div class="flex gap-3 items-end">
               <div>
                 <label class="block text-xs text-gray-500 mb-1 font-medium">Clase</label>
                 <input v-model="examMeta.className" type="text" placeholder="A" class="w-16 border border-gray-200/80 rounded-lg px-2 py-2 text-sm placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
@@ -314,6 +370,21 @@ onUnmounted(() => {
                   />
                 </div>
               </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1 font-medium">Tamaño</label>
+                <div class="flex items-center rounded-lg border border-gray-200/80 overflow-hidden">
+                  <button
+                    v-for="s in FONT_SIZES"
+                    :key="s"
+                    @click="fontSize = s"
+                    :class="[
+                      fontSize === s ? 'bg-primary-100 text-primary-700' : 'bg-white/80 text-gray-400 hover:bg-gray-50',
+                      'px-2.5 py-2 font-bold transition-all cursor-pointer'
+                    ]"
+                    :style="{ fontSize: (s - 2) + 'px' }"
+                  >A</button>
+                </div>
+              </div>
             </div>
 
             <div v-if="showField.title">
@@ -323,7 +394,7 @@ onUnmounted(() => {
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              <input v-model="examMeta.title" type="text" placeholder="Examen Tema 5 — Ecuaciones" class="w-full border border-gray-200/80 rounded-lg px-3 py-2 text-sm placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
+              <input v-model="examMeta.title" type="text" placeholder="Examen Tema 5, Ecuaciones" class="w-full border border-gray-200/80 rounded-lg px-3 py-2 text-sm placeholder-gray-300 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all" />
             </div>
 
             <div v-if="showField.teacher">
@@ -387,88 +458,39 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8">
-        <div
-          class="flex items-center justify-between px-5 py-3 cursor-pointer select-none"
-          :class="{ 'border-b border-gray-100': !questionsCollapsed }"
-          @click="questionsCollapsed = !questionsCollapsed"
+      <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
+        <button
+          @click="showPointsPanel = !showPointsPanel"
+          class="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
         >
           <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ '-rotate-90': questionsCollapsed }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-            <span class="text-sm font-semibold text-gray-500">Preguntas</span>
-            <span v-if="questions.length" class="text-xs text-gray-400">({{ questions.length }})</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 transition-transform" :class="{ '-rotate-90': !showPointsPanel }" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Asignar puntuaciones</span>
           </div>
-        </div>
-
-        <div v-show="!questionsCollapsed" class="p-5">
-          <div class="space-y-4">
-            <QuestionRow
-              v-for="(q, index) in questions"
-              :key="q.id"
-              v-model:prompt="q.prompt"
-              v-model:latex="q.latex"
-              v-model:title="q.title"
-              v-model:points="q.points"
-              v-model:difficulty="q.difficulty"
-              v-model:question-type="q.questionType"
-              :course="course"
-              :index="index + 1"
-              :collapsed="q.collapsed"
-              :can-move-up="index > 0"
-              :can-move-down="index < questions.length - 1"
-              @remove="removeQuestion(q.id)"
-              @move-up="moveQuestion(q.id, -1)"
-              @move-down="moveQuestion(q.id, 1)"
-              @toggle-collapse="toggleCollapse(q.id)"
-            />
-          </div>
-
-          <div :class="['flex items-center gap-4', questions.length ? 'mt-6' : '']">
-            <button @click="addQuestion" class="inline-flex items-center gap-2 px-5 py-2.5 bg-white/80 backdrop-blur-sm text-primary-600 rounded-xl font-semibold border border-primary-200 hover:bg-primary-50 hover:border-primary-300 shadow-sm hover:shadow transition-all cursor-pointer">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              Añadir pregunta
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
-        <div class="flex items-center justify-between mb-2.5">
-          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Puntos</span>
           <span
             class="text-sm font-bold"
-            :class="totalPoints === 10 ? 'text-accent-500' : 'text-red-500'"
+            :class="!pointsAssigned ? 'text-gray-300' : (totalPoints === 10 ? 'text-accent-500' : 'text-red-500')"
           >{{ totalPoints }} / 10</span>
-        </div>
-        <div class="space-y-1">
-          <div v-for="(q, i) in questions" :key="q.id" class="flex items-center gap-2 group">
-            <div class="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity">
-              <button :disabled="i === 0" @click="moveQuestion(q.id, -1)" class="text-gray-300 hover:text-gray-600 disabled:opacity-0 cursor-pointer disabled:cursor-default">
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
-              </button>
-              <button :disabled="i === questions.length - 1" @click="moveQuestion(q.id, 1)" class="text-gray-300 hover:text-gray-600 disabled:opacity-0 cursor-pointer disabled:cursor-default">
+        </button>
+
+        <div v-show="showPointsPanel" class="mt-3 space-y-1">
+          <div v-for="(q, i) in questions" :key="q.id" class="flex items-center gap-2">
+            <span class="text-xs font-bold text-gray-300 w-4 text-right">{{ i + 1 }}</span>
+            <div class="flex items-center gap-1 shrink-0">
+              <button @click="adjustPoints(q.id, -0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
               </button>
+              <span class="text-xs font-semibold text-gray-500 w-6 text-center tabular-nums">{{ q.points || 0 }}</span>
+              <button @click="adjustPoints(q.id, 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
+              </button>
             </div>
-            <span class="text-xs font-bold text-gray-300 w-4 text-right">{{ i + 1 }}</span>
-            <span class="text-sm text-gray-600 flex-1 truncate">{{ q.title || 'Sin nombre' }}</span>
-            <div class="flex items-center gap-1">
-              <input
-                type="number"
-                v-model.number="q.points"
-                min="0"
-                max="10"
-                step="0.5"
-                class="w-12 text-sm text-right border border-gray-200/80 rounded-lg px-1.5 py-1 bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-              />
-              <span class="text-xs text-gray-400">pts</span>
-            </div>
+            <span class="text-sm text-gray-600 flex-1 truncate">{{ q.title || 'Nueva pregunta' }}</span>
           </div>
         </div>
-        <p v-if="totalPoints !== 10" class="mt-2.5 text-xs text-red-500 font-medium">
-          Los puntos deben sumar 10 para generar el examen.
+
+        <p v-if="pointsAssigned && totalPoints !== 10" class="mt-2.5 text-xs text-red-500 font-medium">
+          Si asignas puntos, deben sumar 10.
         </p>
 
         <div class="flex gap-2 mt-4 pt-3 border-t border-gray-100">

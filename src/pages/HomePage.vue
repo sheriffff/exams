@@ -31,7 +31,7 @@ function handlePorClick() {
           <span class="bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">Exámenes de Matemáticas</span>
         </h1>
         <p class="text-lg text-neutral-600 max-w-2xl mx-auto">
-          Monta un examen en minutos: enunciados con IA, soluciones desarrolladas y PDF listo para imprimir.
+          Monta un examen en minutos: enunciados a medida, soluciones desarrolladas y PDF listo para imprimir.
         </p>
       </div>
 
@@ -51,8 +51,8 @@ function handlePorClick() {
       <div class="grid md:grid-cols-2 gap-5 mb-16 max-w-3xl mx-auto">
         <div class="glass rounded-2xl p-6">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center mb-3 text-lg font-bold">1</div>
-          <h3 class="font-bold text-neutral-900 mb-1">Escribe o pide enunciados con IA</h3>
-          <p class="text-sm text-neutral-600">Tú dictas el tema y el curso; la IA propone ejercicios que puedes editar al vuelo.</p>
+          <h3 class="font-bold text-neutral-900 mb-1">Escribe o pide enunciados</h3>
+          <p class="text-sm text-neutral-600">Tú dictas el tema y el curso; te proponemos ejercicios que puedes editar al vuelo.</p>
         </div>
         <div class="glass rounded-2xl p-6">
           <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-accent-500 to-accent-600 text-white flex items-center justify-center mb-3 text-lg font-bold">2</div>

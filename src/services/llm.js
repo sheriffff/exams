@@ -4,6 +4,20 @@ import iterateQuestionPrompt from '@/prompts/iterate-question.md?raw'
 import solveQuestionPrompt from '@/prompts/solve-question.md?raw'
 import questionFormatPrompt from '@/prompts/question-format.md?raw'
 
+const COURSE_AGES = {
+  '1 ESO': '12-13',
+  '2 ESO': '13-14',
+  '3 ESO': '14-15',
+  '4 ESO': '15-16',
+  '1 Bachillerato': '16-17',
+  '2 Bachillerato': '17-18',
+}
+
+function courseWithAge(course) {
+  const age = COURSE_AGES[course]
+  return age ? `${course} (${age} años)` : course
+}
+
 function fillTemplate(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '')
 }
@@ -27,17 +41,17 @@ async function callLLM(prompt) {
 }
 
 export async function generateQuestion(prompt, course, difficulty = 'normal', questionType = 'analitico') {
-  const filled = fillTemplate(generateQuestionPrompt, { prompt, course, difficulty, questionType }) + '\n\n' + questionFormatPrompt
+  const filled = fillTemplate(generateQuestionPrompt, { prompt, course: courseWithAge(course), difficulty, questionType }) + '\n\n' + questionFormatPrompt
   return parseResponse(await callLLM(filled))
 }
 
 export async function adjustDifficulty(latex, course, direction) {
-  const filled = fillTemplate(adjustDifficultyPrompt, { latex, course, direction }) + '\n\n' + questionFormatPrompt
+  const filled = fillTemplate(adjustDifficultyPrompt, { latex, course: courseWithAge(course), direction }) + '\n\n' + questionFormatPrompt
   return parseResponse(await callLLM(filled))
 }
 
 export async function iterateQuestion(latex, course, instruction) {
-  const filled = fillTemplate(iterateQuestionPrompt, { latex, course, instruction }) + '\n\n' + questionFormatPrompt
+  const filled = fillTemplate(iterateQuestionPrompt, { latex, course: courseWithAge(course), instruction }) + '\n\n' + questionFormatPrompt
   return parseResponse(await callLLM(filled))
 }
 
@@ -49,7 +63,7 @@ const DETAIL_INSTRUCTIONS = {
 
 export async function solveQuestion(latex, course, detailLevel = 'normal') {
   const detailInstruction = DETAIL_INSTRUCTIONS[detailLevel] || DETAIL_INSTRUCTIONS.normal
-  const filled = fillTemplate(solveQuestionPrompt, { latex, course, detailInstruction })
+  const filled = fillTemplate(solveQuestionPrompt, { latex, course: courseWithAge(course), detailInstruction })
   const text = await callLLM(filled)
   return text.replace(/^```[\w]*\n?/gm, '').replace(/\n?```$/gm, '').trim()
 }

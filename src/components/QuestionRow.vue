@@ -14,7 +14,6 @@ const props = defineProps({
 const prompt = defineModel('prompt', { type: String, default: '' })
 const latex = defineModel('latex', { type: String, default: '' })
 const title = defineModel('title', { type: String, default: '' })
-const points = defineModel('points', { type: Number, default: 0 })
 
 const emit = defineEmits(['remove', 'move-up', 'move-down', 'toggle-collapse'])
 
@@ -84,15 +83,6 @@ async function iterate() {
     >
       <div class="flex items-center gap-2.5 flex-1 min-w-0">
         <span class="text-xs font-bold shrink-0 w-5 text-center" :class="latex ? 'text-accent-500' : 'text-gray-300'">{{ index }}</span>
-        <div class="flex items-center gap-1 shrink-0" @click.stop>
-          <button @click="points = Math.max(0, (points || 0) - 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <span class="text-xs font-semibold text-gray-500 w-6 text-center tabular-nums">{{ points || 0 }}</span>
-          <button @click="points = Math.min(10, (points || 0) + 0.5)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>
-          </button>
-        </div>
         <input
           v-model="title"
           type="text"
@@ -131,7 +121,7 @@ async function iterate() {
     <div v-show="!collapsed" class="p-5">
       <div class="grid grid-cols-3 gap-5" :class="{ 'opacity-50 pointer-events-none': loading }">
         <div class="flex flex-col gap-2.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Prompt IA</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Instrucción</label>
           <textarea
             v-model="prompt"
             rows="5"
@@ -168,7 +158,7 @@ async function iterate() {
           >
             <svg v-if="!loading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
             <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-            {{ loading ? 'Generando...' : 'Generar con IA' }}
+            {{ loading ? 'Generando...' : 'Generar enunciado' }}
           </button>
         </div>
 

@@ -1,6 +1,6 @@
 Eres un profesor de matemáticas experto en crear exámenes para estudiantes españoles.
 
-Tienes la siguiente pregunta de examen en LaTeX para el nivel **{{course}}**:
+Tienes la siguiente pregunta de examen en LaTeX para alumnos de **{{course}}**:
 
 ```latex
 {{latex}}
