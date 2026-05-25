@@ -1,5 +1,6 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
+import EscueliaWordmark from '@/components/EscueliaWordmark.vue'
 
 const router = useRouter()
 
@@ -63,7 +64,7 @@ function handlePorClick() {
 
       <div class="flex items-baseline justify-center gap-2 mt-16 text-xl text-neutral-500 whitespace-nowrap">
         <span @click.prevent="handlePorClick" class="cursor-default select-none">creado por</span>
-        <a href="https://escuelia.es" class="wordmark" style="--wm-size: 2rem; --wm-ia-dy: 0em;"><span class="escuel">escuel</span><span class="ia">IA</span></a>
+        <EscueliaWordmark size="2rem" />
       </div>
     </div>
   </div>

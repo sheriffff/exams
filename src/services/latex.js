@@ -1,3 +1,55 @@
+function needsTikz(sources) {
+  return sources.some(s => s && /\\begin\{tikzpicture\}/.test(s))
+}
+
+function needsPgfplots(sources) {
+  return sources.some(s => s && /\\begin\{(axis|loglogaxis|semilogxaxis|semilogyaxis|polaraxis)\}/.test(s))
+}
+
+function needsCaption(sources) {
+  return sources.some(s => s && /\\caption\*/.test(s))
+}
+
+function needsMarvosym(sources) {
+  return sources.some(s => s && /\\Letter\b/.test(s))
+}
+
+function needsEnumitem(sources) {
+  return sources.some(s => s && /\\begin\{(enumerate|itemize|description)\}\[/.test(s))
+}
+
+function preamble(fontSize, sources = []) {
+  const lines = [
+    `\\documentclass[a4paper,${fontSize}pt]{extarticle}`,
+    `\\usepackage[utf8]{inputenc}`,
+    `\\usepackage[T1]{fontenc}`,
+    `\\usepackage[spanish]{babel}`,
+    `\\usepackage{amsmath,amssymb}`,
+    `\\usepackage[table]{xcolor}`,
+  ]
+  if (needsTikz(sources) || needsPgfplots(sources)) {
+    lines.push(`\\usepackage{tikz}`)
+    lines.push(`\\usetikzlibrary{arrows.meta,calc,patterns,decorations.pathreplacing,angles,quotes}`)
+  }
+  if (needsPgfplots(sources)) {
+    lines.push(`\\usepackage{pgfplots}`)
+    lines.push(`\\pgfplotsset{compat=1.18}`)
+  }
+  if (needsCaption(sources)) {
+    lines.push(`\\usepackage{caption}`)
+  }
+  if (needsMarvosym(sources)) {
+    lines.push(`\\usepackage{marvosym}`)
+  }
+  if (needsEnumitem(sources)) {
+    lines.push(`\\usepackage{enumitem}`)
+  }
+  lines.push(`\\usepackage[margin=1.5cm]{geometry}`)
+  lines.push('')
+  lines.push(`\\pagestyle{empty}`)
+  return lines.join('\n') + '\n'
+}
+
 function escapeLatex(text) {
   return text.replace(/[\\&%$#_{}~^]/g, m => ({
     '\\': '\\textbackslash{}',
@@ -7,13 +59,17 @@ function escapeLatex(text) {
   })[m])
 }
 
-function buildQuestionsBlock(questions, includePoints = true) {
-  return questions
-    .filter(q => q.latex)
-    .map(q => {
+function buildQuestionsBlock(questions, opts = {}) {
+  const { includePoints = true, spacingCm = 0 } = opts
+  const valid = questions.filter(q => q.latex)
+  return valid
+    .map((q, i) => {
       let item = '\\item'
       if (includePoints && q.points) item += ` \\textbf{(${q.points} pts)}`
       item += `\n${q.latex}`
+      if (spacingCm > 0 && i < valid.length - 1) {
+        item += `\n\n\\vspace{${spacingCm}cm}`
+      }
       return item
     })
     .join('\n\n')
@@ -76,23 +132,59 @@ export function buildHeaderLatex(examMeta, course, options = {}) {
   return lines.join('\n')
 }
 
+export const ESCUELIA_WORDMARK = `{\\color[HTML]{1D2530}\\textit{escuel}}{\\color[HTML]{2F5A72}\\textbf{IA}}`
+
+function buildMessagePage() {
+  return `\\thispagestyle{empty}
+\\vspace*{1cm}
+\\begin{center}
+{\\Huge ${ESCUELIA_WORDMARK}}
+\\end{center}
+
+\\vspace{1.5cm}
+
+\\noindent Hola, soy Manu.
+
+\\vspace{0.5cm}
+
+\\noindent He creado esta herramienta porque creo que nos puede dar buenas ideas y ahorrar horas a los profes de matemáticas al preparar exámenes.
+
+\\vspace{0.5cm}
+
+\\noindent Detrás de esto no hay una gran empresa. Soy yo solo, y he dejado mi trabajo para volcarme a tiempo completo en desarrollar esta y otras herramientas para clase.
+
+\\vspace{0.5cm}
+
+\\noindent Si te está sirviendo y crees que a tu departamento o a tu centro le cuadraría usarla de forma oficial y customizarla, escríbeme por favor un mail y lo vemos.
+
+\\vspace{0.5cm}
+
+\\noindent \\Letter\\ \\texttt{manuel.lopez.sheriff@gmail.com}
+
+\\vspace{0.5cm}
+
+\\noindent Y pásate por \\texttt{www.escuelia.es} para ver el resto :)
+
+\\newpage
+`
+}
+
 export function buildTexDocument(questions, examMeta, course, options = {}, fontSize = 12) {
-  const questionsBlock = buildQuestionsBlock(questions, options.includePoints !== false)
+  const questionsBlock = buildQuestionsBlock(questions, {
+    includePoints: options.includePoints !== false,
+    spacingCm: options.spacingCm || 0,
+  })
 
   const header = buildHeaderLatex(examMeta, course, options)
 
-  return `\\documentclass[a4paper,${fontSize}pt]{extarticle}
-\\usepackage[utf8]{inputenc}
-\\usepackage[T1]{fontenc}
-\\usepackage[spanish]{babel}
-\\usepackage{amsmath,amssymb}
-\\usepackage[margin=1.5cm]{geometry}
+  const messagePage = options.prependMessage ? buildMessagePage() : ''
 
-\\pagestyle{empty}
+  const sources = [...questions.map(q => q.latex), messagePage]
 
+  return `${preamble(fontSize, sources)}
 \\begin{document}
 
-${header}
+${messagePage}${header}
 \\begin{enumerate}
 ${questionsBlock}
 \\end{enumerate}
@@ -115,15 +207,9 @@ export function buildSolutionTexDocument(questions, solutions, examMeta, course,
     })
     .join('\n\n\\vspace{0.5cm}\n\n')
 
-  return `\\documentclass[a4paper,${fontSize}pt]{extarticle}
-\\usepackage[utf8]{inputenc}
-\\usepackage[T1]{fontenc}
-\\usepackage[spanish]{babel}
-\\usepackage{amsmath,amssymb}
-\\usepackage[margin=1.5cm]{geometry}
+  const sources = [...valid.map(q => q.latex), ...solutions]
 
-\\pagestyle{empty}
-
+  return `${preamble(fontSize, sources)}
 \\begin{document}
 
 \\begin{center}

@@ -2,8 +2,10 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import QuestionRow from '@/components/QuestionRow.vue'
+import EscueliaWordmark from '@/components/EscueliaWordmark.vue'
 import { buildTexDocument, buildSolutionTexDocument, compilePdf, downloadBlob } from '@/services/latex'
 import { solveQuestion } from '@/services/llm'
+import { shouldPrependMessage, incrementExamCount } from '@/services/quota'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
@@ -53,10 +55,24 @@ function removeInstruction(index) {
 }
 
 const pointsEnabled = ref(false)
+const spacingEnabled = ref(false)
+const spacingCm = ref(10)
+
+const spacingLabel = computed(() => {
+  const cm = spacingCm.value
+  if (cm <= 7) return 'Poco'
+  if (cm <= 12) return 'Medio'
+  return 'Largo'
+})
+
+function adjustSpacing(delta) {
+  spacingCm.value = Math.max(1, Math.min(25, spacingCm.value + delta))
+}
 
 const examOptions = computed(() => ({
   instructions: instructions.value.filter(i => i.trim()).join('\n'),
   includePoints: pointsEnabled.value,
+  spacingCm: spacingEnabled.value ? spacingCm.value : 0,
 }))
 
 const headerCanvasRef = ref(null)
@@ -160,10 +176,12 @@ async function generateExam() {
   generating.value = true
   try {
     const meta = { ...examMeta.value, date: formattedDate.value }
-    const tex = buildTexDocument(questions.value, meta, course.value, examOptions.value, fontSize.value)
+    const opts = { ...examOptions.value, prependMessage: shouldPrependMessage() }
+    const tex = buildTexDocument(questions.value, meta, course.value, opts, fontSize.value)
     const blob = await compilePdf(tex)
     const filename = (examMeta.value.title || 'examen').replace(/\s+/g, '_') + '.pdf'
     downloadBlob(blob, filename)
+    incrementExamCount()
   } catch (e) {
     alert('Error al generar el PDF: ' + e.message)
   } finally {
@@ -192,6 +210,30 @@ async function generateSolution(detailLevel = 'normal') {
 }
 
 let nextId = 1
+
+const showResetConfirm = ref(false)
+
+function resetAll() {
+  course.value = ''
+  questions.value = []
+  nextId = 1
+  examMeta.value = {
+    title: '',
+    teacher: '',
+    date: new Date().toISOString().slice(0, 10),
+    className: '',
+    modelo: '',
+  }
+  instructions.value = ['']
+  pointsEnabled.value = false
+  spacingEnabled.value = false
+  spacingCm.value = 10
+  fontSize.value = 12
+  headerCollapsed.value = true
+  questionsCollapsed.value = false
+  showField.value = { title: false, teacher: false, instructions: false }
+  showResetConfirm.value = false
+}
 
 function addQuestion() {
   questions.value.forEach(q => q.collapsed = true)
@@ -239,22 +281,31 @@ onUnmounted(() => {
 
     <div class="max-w-6xl mx-auto px-6 py-6">
       <div class="flex items-center gap-4 mb-6 pb-5 border-b border-gray-200/70">
-        <a href="https://escuelia.es" class="wordmark" style="--wm-size: 1.75rem; --wm-ia-dy: 0em;">
-          <span class="escuel">escuel</span><span class="ia">IA</span>
-        </a>
+        <EscueliaWordmark size="1.75rem" />
         <div class="h-7 w-px bg-gray-300"></div>
         <span class="text-sm font-semibold text-gray-600">
           Generador de Exámenes de Matemáticas
         </span>
       </div>
 
-      <div class="flex items-center gap-3 mb-8">
-        <RouterLink to="/" class="p-2 rounded-xl text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      <div class="flex items-center justify-between gap-3 mb-8">
+        <div class="flex items-center gap-3">
+          <RouterLink to="/" class="p-2 rounded-xl text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-all">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+          </RouterLink>
+          <h1 class="text-2xl font-extrabold tracking-tight text-gray-900">Crear Examen</h1>
+        </div>
+        <button
+          @click="showResetConfirm = true"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm text-gray-700 rounded-xl text-sm font-semibold border border-gray-200 hover:bg-white hover:border-gray-300 shadow-sm hover:shadow transition-all cursor-pointer"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
           </svg>
-        </RouterLink>
-        <h1 class="text-2xl font-extrabold tracking-tight text-gray-900">Crear Examen</h1>
+          Nuevo examen
+        </button>
       </div>
 
       <div class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-5 mb-6">
@@ -459,28 +510,28 @@ onUnmounted(() => {
 
       <div v-if="questions.length" class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8">
         <div class="flex items-center justify-between px-5 py-3" :class="{ 'border-b border-gray-100': pointsEnabled }">
-          <div class="flex items-center gap-3">
-            <span class="text-sm font-semibold text-gray-500">Puntuaciones</span>
-            <span
-              v-if="pointsEnabled"
-              class="text-sm font-bold"
-              :class="totalPoints === 10 ? 'text-accent-500' : 'text-red-500'"
-            >{{ totalPoints }} / 10</span>
+          <div class="flex items-center gap-2.5">
+            <button
+              role="switch"
+              :aria-checked="pointsEnabled"
+              @click="pointsEnabled = !pointsEnabled"
+              :class="[
+                pointsEnabled ? 'bg-gradient-to-r from-primary-600 to-accent-500' : 'bg-gray-200',
+                'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer shrink-0'
+              ]"
+            >
+              <span
+                :class="pointsEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'"
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow"
+              />
+            </button>
+            <span class="text-sm font-semibold text-gray-500">Añadir puntuaciones</span>
           </div>
-          <button
-            role="switch"
-            :aria-checked="pointsEnabled"
-            @click="pointsEnabled = !pointsEnabled"
-            :class="[
-              pointsEnabled ? 'bg-gradient-to-r from-primary-600 to-accent-500' : 'bg-gray-200',
-              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer'
-            ]"
-          >
-            <span
-              :class="pointsEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'"
-              class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow"
-            />
-          </button>
+          <span
+            v-if="pointsEnabled"
+            class="text-sm font-bold"
+            :class="totalPoints === 10 ? 'text-accent-500' : 'text-red-500'"
+          >{{ totalPoints }} / 10</span>
         </div>
 
         <div v-show="pointsEnabled" class="p-5">
@@ -505,6 +556,61 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div v-if="questions.length" class="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm mb-8">
+        <div class="flex items-center justify-between px-5 py-3" :class="{ 'border-b border-gray-100': spacingEnabled }">
+          <div class="flex items-center gap-2.5">
+            <button
+              role="switch"
+              :aria-checked="spacingEnabled"
+              @click="spacingEnabled = !spacingEnabled"
+              :class="[
+                spacingEnabled ? 'bg-gradient-to-r from-primary-600 to-accent-500' : 'bg-gray-200',
+                'relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer shrink-0'
+              ]"
+            >
+              <span
+                :class="spacingEnabled ? 'translate-x-[18px]' : 'translate-x-0.5'"
+                class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow"
+              />
+            </button>
+            <span class="text-sm font-semibold text-gray-500">Espacio entre preguntas</span>
+          </div>
+          <span v-if="spacingEnabled" class="text-xs font-semibold text-gray-400">{{ spacingCm }} cm · {{ spacingLabel }}</span>
+        </div>
+
+        <div v-show="spacingEnabled" class="p-5">
+          <p class="text-xs text-gray-500 mb-3">Espacio en blanco bajo cada pregunta para que el alumno escriba la respuesta. Los saltos de página se ajustan automáticamente.</p>
+          <div class="flex items-center gap-3">
+            <button @click="adjustSpacing(-1)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" /></svg>
+            </button>
+            <input
+              v-model.number="spacingCm"
+              type="number"
+              min="1"
+              max="25"
+              step="1"
+              class="w-14 border border-gray-200/80 rounded-lg px-2 py-1.5 text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 transition-all"
+            />
+            <span class="text-xs text-gray-400 font-medium">cm</span>
+            <button @click="adjustSpacing(1)" class="text-gray-300 hover:text-gray-600 cursor-pointer transition-colors">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+            </button>
+            <div class="flex items-center gap-1 ml-3">
+              <button
+                v-for="preset in [{ label: 'Poco', cm: 5 }, { label: 'Medio', cm: 10 }, { label: 'Largo', cm: 15 }]"
+                :key="preset.cm"
+                @click="spacingCm = preset.cm"
+                :class="[
+                  spacingCm === preset.cm ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-white/80 text-gray-500 border-gray-200 hover:border-gray-300',
+                  'px-2.5 py-1 rounded-lg text-xs font-semibold border cursor-pointer transition-all'
+                ]"
+              >{{ preset.label }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="questions.length" class="max-w-xs bg-white/70 backdrop-blur-sm rounded-2xl border border-white/50 shadow-sm p-4 mb-6">
         <div class="flex gap-2">
           <button
@@ -525,6 +631,26 @@ onUnmounted(() => {
             <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
             {{ generatingSolution ? 'Resolviendo…' : 'Solución' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="showResetConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4"
+      @click.self="showResetConfirm = false"
+    >
+      <div class="bg-white rounded-2xl shadow-xl border border-white/50 max-w-sm w-full p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-bold text-gray-800">¿Empezar un examen nuevo?</h3>
+          <button @click="showResetConfirm = false" class="text-gray-300 hover:text-gray-500 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <p class="text-sm text-gray-600 mb-5">Se perderán las preguntas y los datos del examen actual. Esta acción no se puede deshacer.</p>
+        <div class="flex justify-end gap-2">
+          <button @click="showResetConfirm = false" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 cursor-pointer">Cancelar</button>
+          <button @click="resetAll" class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-500 text-white hover:bg-red-600 cursor-pointer">Empezar de nuevo</button>
         </div>
       </div>
     </div>
