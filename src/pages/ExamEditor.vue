@@ -6,6 +6,7 @@ import EscueliaWordmark from '@/components/EscueliaWordmark.vue'
 import { buildTexDocument, buildSolutionTexDocument, compilePdf, downloadBlob } from '@/services/latex'
 import { solveQuestion } from '@/services/llm'
 import { shouldPrependMessage, incrementExamCount } from '@/services/quota'
+import { generateEscueliaLogoPNG } from '@/services/logoImage'
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
@@ -176,9 +177,18 @@ async function generateExam() {
   generating.value = true
   try {
     const meta = { ...examMeta.value, date: formattedDate.value }
-    const opts = { ...examOptions.value, prependMessage: shouldPrependMessage() }
+    const withMessage = shouldPrependMessage()
+    const opts = { ...examOptions.value, prependMessage: withMessage }
     const tex = buildTexDocument(questions.value, meta, course.value, opts, fontSize.value)
-    const blob = await compilePdf(tex)
+    const extraResources = []
+    if (withMessage) {
+      const { base64 } = await generateEscueliaLogoPNG()
+      extraResources.push({
+        path: 'escuelia-logo.png',
+        file: base64,
+      })
+    }
+    const blob = await compilePdf(tex, extraResources)
     const filename = (examMeta.value.title || 'examen').replace(/\s+/g, '_') + '.pdf'
     downloadBlob(blob, filename)
     incrementExamCount()

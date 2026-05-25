@@ -18,6 +18,10 @@ function needsEnumitem(sources) {
   return sources.some(s => s && /\\begin\{(enumerate|itemize|description)\}\[/.test(s))
 }
 
+function needsGraphicx(sources) {
+  return sources.some(s => s && /\\includegraphics\b/.test(s))
+}
+
 function preamble(fontSize, sources = []) {
   const lines = [
     `\\documentclass[a4paper,${fontSize}pt]{extarticle}`,
@@ -43,6 +47,9 @@ function preamble(fontSize, sources = []) {
   }
   if (needsEnumitem(sources)) {
     lines.push(`\\usepackage{enumitem}`)
+  }
+  if (needsGraphicx(sources)) {
+    lines.push(`\\usepackage{graphicx}`)
   }
   lines.push(`\\usepackage[margin=1.5cm]{geometry}`)
   lines.push('')
@@ -132,13 +139,11 @@ export function buildHeaderLatex(examMeta, course, options = {}) {
   return lines.join('\n')
 }
 
-export const ESCUELIA_WORDMARK = `{\\color[HTML]{1D2530}\\textit{escuel}}{\\color[HTML]{2F5A72}\\textbf{IA}}`
-
 function buildMessagePage() {
   return `\\thispagestyle{empty}
 \\vspace*{1cm}
 \\begin{center}
-{\\Huge ${ESCUELIA_WORDMARK}}
+\\includegraphics[height=2cm]{escuelia-logo.png}
 \\end{center}
 
 \\vspace{1.5cm}
@@ -228,13 +233,13 @@ ${items}
 `
 }
 
-export async function compilePdf(texSource) {
+export async function compilePdf(texSource, extraResources = []) {
   const res = await fetch('https://latex.ytotech.com/builds/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       compiler: 'pdflatex',
-      resources: [{ main: true, content: texSource }],
+      resources: [{ main: true, content: texSource }, ...extraResources],
     }),
   })
   if (!res.ok) {
