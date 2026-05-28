@@ -115,8 +115,8 @@ async function iterate() {
           <textarea
             v-model="prompt"
             rows="5"
-            placeholder="Describe la pregunta que quieres generar..."
-            class="w-full border border-gray-200/80 rounded-xl p-3 text-sm resize-y bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder-gray-300 transition-all"
+            placeholder="Ej: sistema de ecuaciones con dos incógnitas con solución entera"
+            class="w-full border border-gray-200/80 rounded-xl p-3 text-sm resize-y bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder-gray-400 transition-all"
           />
           <div class="flex items-center gap-3">
             <div class="flex rounded-xl overflow-hidden border border-gray-200/80">
@@ -153,12 +153,12 @@ async function iterate() {
         </div>
 
         <div class="flex flex-col gap-2.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">LaTeX</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Código LaTeX (editable por ti)</label>
           <textarea
             v-model="latex"
             rows="15"
             placeholder="El LaTeX aparecerá aquí..."
-            class="w-full border border-gray-200/80 rounded-xl p-3 text-sm font-mono resize-y bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder-gray-300 transition-all"
+            class="w-full border border-gray-200/80 rounded-xl p-3 text-sm font-mono resize-y bg-white/80 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-400 placeholder-gray-400 transition-all"
           />
           <div class="flex gap-2">
             <button
@@ -189,7 +189,7 @@ async function iterate() {
         </div>
 
         <div class="flex flex-col gap-2.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Preview</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Previsualización PDF</label>
           <div class="border border-gray-100 rounded-xl p-4 min-h-[120px] bg-white overflow-auto">
             <LatexPreview :latex="latex" />
           </div>

@@ -49,7 +49,7 @@ function convertEnvironments(s) {
 function render() {
   if (!container.value) return
   if (!props.latex.trim()) {
-    container.value.innerHTML = '<span class="text-gray-400 italic">Sin contenido</span>'
+    container.value.innerHTML = ''
     return
   }
 
